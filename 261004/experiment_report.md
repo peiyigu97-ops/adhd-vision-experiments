@@ -1,67 +1,68 @@
-# OV9281 低成本可穿戴眼动检测 —— Phase 2 可行性原型验证实验报告
+# OV9281 Low-Cost Wearable Eye Tracking — Phase 2 Feasibility Prototype Validation Report
 
-项目：ALINEX ADHD 注意力检测/视觉干预系统
-阶段：Phase 2 —— 单路眼动摄像头技术可行性验证
-时间跨度：2026-10-04 ～ 2026-10-23
-状态：**feasibility prototype（可行性原型），非最终产品，非商用眼动仪**
+Project: ALINEX ADHD Attention Detection / Visual Intervention System
+Phase: Phase 2 — single-channel eye-tracking camera technical feasibility validation
+Time span: 2026-10-04 ~ 2026-10-23
+Status: **feasibility prototype, not a final product, not a commercial eye tracker**
 
-本报告的目的：为作品集呈现一条完整、可追溯的技术验证脉络——**每一步做了什么、为什么这么做、用什么平台/方法实现、算出了什么数字、数字说明了什么**。所有失败和反复都如实记录，不美化、不省略，这是工程可行性验证的核心价值所在：知道瓶颈在哪，比展示一个"看起来成功"的结果更重要。
+The purpose of this report: to present a complete, traceable technical validation trail for the portfolio — **what was done at each step, why it was done that way, what platform/method was used, what numbers came out, and what those numbers mean**. Every failure and setback is recorded honestly, without embellishment or omission — this is the core value of engineering feasibility validation: knowing where the bottleneck actually is matters more than showing a result that merely "looks successful."
 
 ---
 
-## 0. 项目背景与总体技术路线
+## 0. Project Background and Overall Technical Route
 
-ALINEX 要验证的最终目标链路是：
+The end-to-end target chain ALINEX needs to validate is:
 
 ```
-OV9281眼部摄像头 → 瞳孔定位 → 相对注视方向
+OV9281 eye camera → pupil localization → relative gaze direction
                                     ↓
-                        （后续叠加IMU + 场景摄像头）
+                        (later layered with IMU + scene camera)
                                     ↓
                         gaze → scene object → attention target
 ```
 
-Phase 2 只验证其中**最基础的一段**：OV9281 摄像头采集 → 瞳孔检测 → 瞳孔中心追踪 → 相对注视估计 → 简单标定。不涉及IMU、场景摄像头、注意力判定算法。
+Phase 2 only validates **the most foundational segment** of this: OV9281 camera capture → pupil detection → pupil-center tracking → relative gaze estimation → simple calibration. It does not involve the IMU, the scene camera, or the attention-judgment algorithm.
 
-### 硬件
-| 项目    | 规格                                                                                          |
-| ----- | ------------------------------------------------------------------------------------------- |
-| 摄像头   | OV9281，monochrome，1MP，Global Shutter，USB2.0 UVC，M12镜头，无IR-cut滤光片，105° FOV，标称1280×720@120FPS |
-| IR 照明 | 10/4实验时**未安装**；10/8新增850nm IR补光LED，离轴安装                                                     |
-![[e8ef38a18c7b1bba31121ff774001085.jpg|259]]![[19fdacef68b395b7498fe3b01a1307a6 1.jpg|259]]
-### 软件环境
-| 项目     | 规格                                                                      |
-| ------ | ----------------------------------------------------------------------- |
-| 操作系统   | Windows                                                                 |
-| Python | 3.12.5 64-bit，独立环境 `D:\工业设计`（路径含中文字符，这一点后续造成过实际bug，见第1节）                |
-| 核心库    | opencv-python 4.10.0.84、numpy 2.5.1、matplotlib 3.11.2                   |
-| 开发工具   | Claude Code（本报告的协作生成工具），脚本以 `.py` 文件形式交给用户在自己的 PowerShell 终端运行，输出手动贴回核对 |
-|        |                                                                         |
+### Hardware
+| Item | Spec |
+|---|---|
+| Camera | OV9281, monochrome, 1MP, global shutter, USB2.0 UVC, M12 lens, no IR-cut filter, 105° FOV, rated 1280×720 @ 120FPS |
+| IR illumination | not installed on 10/4; an 850nm IR fill LED added on 10/8, mounted off-axis |
 
-### 实验方式说明
-受限于某些阶段需要真人实时操作摄像头（调整坐姿、按键采集、开关IR灯），本项目的每个脚本都由 AI 编写，但**必须由用户本人实际运行**，再把终端输出和保存的图片交回核查。这保证了每一步的"成功"都经过真实硬件验证，而不是纸面推演。
+![Hardware photo 1](images_vault_root/e8ef38a18c7b1bba31121ff774001085.jpg) ![Hardware photo 2](images_vault_root/19fdacef68b395b7498fe3b01a1307a6%201.jpg)
+
+### Software environment
+| Item | Spec |
+|---|---|
+| OS | Windows |
+| Python | 3.12.5 64-bit, a standalone environment at `D:\工业设计` (the path contains non-ASCII characters, which later caused a real bug — see Section 1) |
+| Core libraries | opencv-python 4.10.0.84, numpy 2.5.1, matplotlib 3.11.2 |
+| Dev tooling | Claude Code (the collaborative tool that generated this report); scripts are handed to the user as `.py` files to run in their own PowerShell terminal, with terminal output and saved images pasted back for review |
+
+### Experimental methodology note
+Because some stages require a real person to operate the camera live (adjusting posture, pressing keys to capture, turning the IR light on/off), every script in this project was written by an AI, but **had to actually be run by the user themselves**, with the terminal output and saved images handed back for review. This ensured every "success" was verified against real hardware, not just a paper derivation.
 
 ---
 
-## 1. 环境搭建阶段：排查三个真实的工程障碍
+## 1. Environment Setup Phase: Three Real Engineering Obstacles
 
-在开始实验前，搭建可用的 OpenCV 环境本身遇到了三个独立问题，逐一记录：
+Before the experiments began, just getting a working OpenCV environment hit three independent problems, recorded one by one:
 
-### 1.1 pip 安装失败 —— 根因是残留的代理环境变量
-**现象**：`pip install opencv-python` 报 ProxyError。
-**排查方法**：用 `reg query HKCU\Environment` 检查用户级环境变量。
-**根因**：`HTTP_PROXY`/`HTTPS_PROXY` 两个环境变量残留指向一个早已失效的本地代理端口 `127.0.0.1:6696`（与系统网络设置里另一个端口7890的代理完全无关，那个是已禁用状态，不是问题所在）。
-**解决**：`reg delete` 清除这两个残留变量后，pip 立即可以正常访问 PyPI。
+### 1.1 pip install failure — root cause was a leftover proxy environment variable
+**Symptom**: `pip install opencv-python` threw a ProxyError.
+**Diagnosis method**: checked user-level environment variables with `reg query HKCU\Environment`.
+**Root cause**: the `HTTP_PROXY`/`HTTPS_PROXY` environment variables were left pointing at a long-dead local proxy port `127.0.0.1:6696` (unrelated to another port, 7890, configured in the system's network settings, which was already disabled and not the issue).
+**Fix**: `reg delete` to clear these two leftover variables; pip could then reach PyPI normally right away.
 
-### 1.2 OpenCV 5.0.0 移除了经典 Haar cascade 模块
-**现象**：安装完成后 `cv2.CascadeClassifier` 报 `AttributeError: module 'cv2' has no attribute 'CascadeClassifier'`。
-**排查方法**：检查 opencv-python 的 `.pyi` 类型声明文件和包内文件列表，确认 5.0.0.93 版本确实不再包含 CascadeClassifier 及配套的 `haarcascade_*.xml` 文件。
-**解决**：降级到 `opencv-python==4.10.0.84`（用户在"是否降级到4.x"的选择中明确同意）。
+### 1.2 OpenCV 5.0.0 removed the classic Haar cascade module
+**Symptom**: after installation, `cv2.CascadeClassifier` raised `AttributeError: module 'cv2' has no attribute 'CascadeClassifier'`.
+**Diagnosis method**: checked opencv-python's `.pyi` type stub files and the package's file list, confirming that version 5.0.0.93 indeed no longer includes `CascadeClassifier` or the accompanying `haarcascade_*.xml` files.
+**Fix**: downgraded to `opencv-python==4.10.0.84` (the user explicitly agreed to this when asked "downgrade to 4.x?").
 
-### 1.3 OpenCV 底层无法读取含中文字符的路径
-**现象**：`cv2.CascadeClassifier(cv2.data.haarcascades + "...")` 报错，错误信息里的路径字符串变成乱码（如 `D:\宸ヤ笟璁捐\...`）。
-**根因**：Python 环境装在 `D:\工业设计`（含中文字符），OpenCV 的 C++ 底层 `cv::FileStorage` 读取函数在 Windows 上无法正确解析非 ASCII 路径，而 Python 原生文件 I/O（open、读写PNG）不受此限制——只影响 OpenCV 自己这一个底层读取函数。
-**解决**：写 `copy_cascades.py` 把两个 XML 文件复制到项目目录（纯 ASCII 路径），之后从本地加载：
+### 1.3 OpenCV's underlying code cannot read paths containing non-ASCII characters
+**Symptom**: `cv2.CascadeClassifier(cv2.data.haarcascades + "...")` threw an error, with the path string in the error message turned into mojibake (e.g. `D:\宸ヤ笟璁捐\...`).
+**Root cause**: the Python environment is installed at `D:\工业设计` (containing non-ASCII characters); OpenCV's underlying C++ `cv::FileStorage` read function cannot correctly parse non-ASCII paths on Windows, while Python's native file I/O (open, reading/writing PNGs) is not affected by this — the limitation is confined to this one OpenCV-internal read function.
+**Fix**: wrote `copy_cascades.py` to copy the two XML files into the project directory (a pure-ASCII path), then load them from there:
 
 ```python
 # copy_cascades.py
@@ -79,26 +80,26 @@ for f in files:
     print(f"Copied {f} -> {dst}")
 ```
 
-**这个教训在报告里的意义**：三个问题都不是"代码写错了"，而是环境/平台层面的真实限制（网络配置、第三方库版本演进、Windows+中文路径的历史兼容问题）。可行性验证的一部分工作量，恰恰是把这类隐藏的环境成本显式地暴露出来。
+**What this lesson means for this report**: none of the three problems were "the code was written wrong" — they were all genuine environment/platform-level limitations (network config, third-party library version evolution, the historical Windows + non-ASCII-path compatibility issue). Part of the work in a feasibility validation is exactly this: surfacing these hidden environmental costs explicitly.
 
 ---
 
-## 2. 第二阶段：摄像头设备识别与帧率实测
+## 2. Stage 2: Device Identification and Measured Frame Rate
 
-### 2.1 目标与方法
-**意义**：不能假设 camera index 固定，必须实测确认哪个 index 对应 OV9281。同时必须用真实连续抓帧而非 `CAP_PROP_FPS` 来衡量帧率（后者只是驱动上报的理论值，不代表实际吞吐）。
+### 2.1 Goal and method
+**Significance**: the camera index cannot be assumed fixed — it must be measured to confirm which index corresponds to the OV9281. Frame rate must also be measured by real continuous frame capture rather than `CAP_PROP_FPS` (the latter is just a theoretical value reported by the driver, not actual throughput).
 
-**统计方法**：对每个候选 index，在目标分辨率下连续读帧 5 秒，计算
+**Measurement method**: for each candidate index, continuously read frames for 5 seconds at the target resolution, and compute
 
 ```
 measured_fps = frames_captured / elapsed_seconds
 ```
 
-这是整个项目唯一被反复使用的核心测量范式——"真实发生的数量 / 真实经过的时间"，而非任何上报值或理论标称值。
+This is the one core measurement paradigm reused throughout the entire project — "the quantity that actually happened / the time that actually elapsed" — never any reported value or nominal spec.
 
-**平台/工具**：OpenCV `cv2.VideoCapture`，DirectShow 后端（`cv2.CAP_DSHOW`，Windows UVC摄像头的标准后端）。
+**Platform/tool**: OpenCV `cv2.VideoCapture`, DirectShow backend (`cv2.CAP_DSHOW`, the standard backend for UVC cameras on Windows).
 
-### 2.2 代码（`camera_test.py`，核心测量函数）
+### 2.2 Code (`camera_test.py`, core measurement function)
 
 ```python
 def measure_fps(idx, backend, width, height, duration=5.0):
@@ -130,48 +131,48 @@ def measure_fps(idx, backend, width, height, duration=5.0):
     }
 ```
 
-### 2.3 实测数据（`camera_enum_results.json`，原始数据）
+### 2.3 Measured data (`camera_enum_results.json`, raw data)
 
-| Index | 分辨率 | frames_captured | elapsed_seconds | measured_fps | dropped |
+| Index | Resolution | frames_captured | elapsed_seconds | measured_fps | dropped |
 |---|---|---|---|---|---|
 | 0 | 640×480 | 74 | 5.009 | 14.77 | 0 |
 | 0 | 1280×720 | 73 | 5.015 | 14.56 | 0 |
 | 1 | 640×480 | 588 | 5.011 | **117.34** | 0 |
 | 1 | 1280×720 | 586 | 5.015 | **116.85** | 0 |
 
-### 2.4 设备身份确认（`identify_camera.py`）
-数字差异巨大（14 vs 117 FPS）已经高度提示 index 1 是 OV9281，但不能只靠数字推断——另外写了 `identify_camera.py` 分别保存两个 index 的实拍帧，**用人眼视觉核查**：index 1 输出单色灰度图像、有明显广角畸变，与 OV9281 规格（monochrome + 105°FOV）吻合；index 0 输出彩色图像，是 Windows 自带的 Integrated Camera。
+### 2.4 Confirming device identity (`identify_camera.py`)
+The huge numerical difference (14 vs 117 FPS) already strongly suggested index 1 was the OV9281, but we didn't rely on inference alone — a separate `identify_camera.py` script saved real captured frames from both indices, and **a human visually inspected them**: index 1 produced a monochrome grayscale image with clear wide-angle distortion, matching the OV9281's spec (monochrome + 105° FOV); index 0 produced a color image, which was the Windows-built-in Integrated Camera.
 
-**结论**：index 1 = OV9281，实测 FPS 116.85（1280×720），零丢帧，与标称120FPS@720p基本一致，采集链路本身可行。
+**Conclusion**: index 1 = OV9281, measured at 116.85 FPS (1280×720), zero dropped frames, essentially matching the rated 120FPS@720p spec — the capture chain itself is feasible.
 
-> ⚠️ **重要更新（10/8）**：这个 index 映射关系后来发生了变化（见第7a节），说明"实测确认"必须每次复测，不能当作永久不变的常量写死在代码里。
+> ⚠️ **Important update (10/8)**: this index mapping later changed (see Section 7a) — "measured confirmation" must be re-verified every time, it cannot be treated as a permanently fixed constant hardcoded into the code.
 
 ---
 
-## 3. 第三阶段：原始图像采集
+## 3. Stage 3: Raw Image Capture
 
-**意义**：建立规范的数据采集流程，为后续所有图像分析提供统一格式的原始素材。
+**Significance**: establish a standardized data-capture pipeline, providing uniformly formatted raw material for all subsequent image analysis.
 
-**方法/平台**：仍是 OpenCV VideoCapture，但这次目的不是测速度，而是真实落盘保存数据，用于离线分析。
+**Method/platform**: still OpenCV VideoCapture, but this time the goal isn't measuring speed — it's actually writing data to disk for offline analysis.
 
-**关键决策**：用 **PNG无损格式**保存，不用JPEG——因为JPEG的有损压缩会在边缘产生振铃伪影，直接污染后续瞳孔边界检测所需的像素级精度。
+**Key decision**: save as **lossless PNG**, not JPEG — because JPEG's lossy compression produces ringing artifacts at edges, directly contaminating the pixel-level precision needed for subsequent pupil-boundary detection.
 
-### 代码核心片段（`capture_raw.py`）
+### Core code snippet (`capture_raw.py`)
 
 ```python
-# 10张静态帧
+# 10 static frames
 while saved < 10 and attempts < 30:
     ret, frame = cap.read()
     attempts += 1
     if not ret:
         continue
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # OV9281本身是单色，但DSHOW仍包装成3通道BGR，这里转换回真正的单通道灰度
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  # the OV9281 is itself monochrome, but DSHOW still wraps it as 3-channel BGR; convert back to true single-channel grayscale
     path = os.path.join(RAW_DIR, f"frame_{saved:02d}.png")
     cv2.imwrite(path, gray)
     saved += 1
     time.sleep(0.2)
 
-# 5秒连续序列
+# 5-second continuous sequence
 frame_count = 0
 start = time.time()
 while time.time() - start < 5.0:
@@ -183,59 +184,62 @@ while time.time() - start < 5.0:
     frame_count += 1
 ```
 
-### 实测数据
-- 10张静态灰度帧：保存到 `data/raw/`
-- 5秒连续序列：**340帧**，有效保存帧率 **67.77 FPS**
-![[作品集/课程/261004/data/raw/frame_00.png|292]]![[作品集/课程/261004/data/raw/frame_09.png|290]]
-**这个数字本身也是如实报告的一个例子**：340帧/5秒=68FPS，明显低于第二阶段测到的117FPS裸读速度。原因很直接——这里的循环同时包含了磁盘写入时间，`measured_fps`这个指标会随着负载（是否写盘、写什么格式）变化，报告里必须说明是哪种场景下测的，不能笼统地说"摄像头是68FPS"或"摄像头是117FPS"。
+### Measured data
+- 10 static grayscale frames: saved to `data/raw/`
+- 5-second continuous sequence: **340 frames**, effective saved frame rate **67.77 FPS**
+
+![Raw frame 0](data/raw/frame_00.png) ![Raw frame 9](data/raw/frame_09.png)
+
+**This number is itself another example of honest reporting**: 340 frames / 5 seconds = 68FPS, noticeably lower than the 117FPS raw-read speed measured in Stage 2. The reason is straightforward — this loop's time also includes disk-write time; the `measured_fps` metric varies with load (whether writing to disk, and in what format), so the report must specify which scenario was measured under, rather than vaguely claiming "the camera is 68FPS" or "the camera is 117FPS."
 
 ---
 
-## 4. 第四阶段：图像质量分析（无IR光源）
+## 4. Stage 4: Image Quality Analysis (No IR Light Source)
 
-**意义**：在没有主动照明的情况下，量化描述当前图像的曝光/对比度状态，为后续判断"瞳孔检测失败是否是图像质量问题"提供基线数据。
+**Significance**: quantitatively describe the current exposure/contrast state with no active illumination, providing baseline data for later judging whether a pupil-detection failure is an image-quality problem.
 
-**统计方法**：对每帧计算以下描述性统计量：
+**Statistical method**: compute the following descriptive statistics for each frame:
 
 ```python
 def analyze(img):
-    mean = float(np.mean(img))           # 平均亮度
-    std = float(np.std(img))              # 标准差，作为对比度的代理指标
+    mean = float(np.mean(img))           # average brightness
+    std = float(np.std(img))              # standard deviation, as a proxy for contrast
     vmin, vmax = int(np.min(img)), int(np.max(img))
     contrast_range = vmax - vmin
-    saturated_low = int(np.sum(img == 0))    # 死黑像素数
-    saturated_high = int(np.sum(img == 255)) # 死白像素数
+    saturated_low = int(np.sum(img == 0))    # pure-black pixel count
+    saturated_high = int(np.sum(img == 255)) # pure-white pixel count
     saturated_pct = 100.0 * (saturated_low + saturated_high) / img.size
     return {...}
 ```
 
-**可视化**：用 matplotlib（Agg后端，非交互，因为脚本是无头运行）生成"原图+256-bin灰度直方图"的复合图，便于直观判断曝光分布是否集中在某个区间。
+**Visualization**: using matplotlib (Agg backend, non-interactive, since the script runs headless) to generate a composite chart of "original image + 256-bin grayscale histogram," for easy visual judgment of whether the exposure distribution is concentrated in a particular range.
 
-### 实测数据（10帧平均，`data/results/image_quality.csv`）
-![[Pasted image 20261009115307.png]]
+### Measured data (10-frame average, `data/results/image_quality.csv`)
 
-| 指标 | 平均值 |
+![Image quality histogram](images_vault_root/Pasted%20image%2020261009115307.png)
+
+| Metric | Average |
 |---|---|
-| 平均亮度 | 68.36 / 255 |
-| 标准差（对比度代理） | 42.96 |
-| 饱和像素占比 | 0.008% |
+| Average brightness | 68.36 / 255 |
+| Standard deviation (contrast proxy) | 42.96 |
+| Saturated pixel fraction | 0.008% |
 
-**解读**：亮度偏暗但没有大面积死黑/死白，整体曝光在室内环境光下处于"可用但不理想"区间。报告中特别强调一点：**这个结论不能外推到"眼部ROI质量也可用"**——因为105°广角FOV下眼睛只占整幅画面很小一部分，全局统计量会掩盖局部区域（比如眼部）可能存在的对比度不足问题，这正是第六阶段失败的部分原因。
+**Interpretation**: brightness is on the dim side, but with no large area of pure black/white, overall the exposure under indoor ambient light sits in a "usable but not ideal" range. The report specifically emphasizes one point: **this conclusion cannot be extrapolated to "the eye ROI quality is also usable"** — because under a 105° wide-angle FOV, the eye occupies only a tiny fraction of the full frame, and global statistics can mask a local region's (e.g. the eye's) possible lack of contrast — this is exactly part of why Stage 6 later failed.
 
 ---
 
-## 5. 第五阶段：实时眼睛 ROI 定位
+## 5. Stage 5: Real-time Eye ROI Localization
 
-**意义**：在整幅画面中自动找到"眼睛"这个局部区域，是瞳孔检测的前置步骤——瞳孔检测算法需要先知道在哪个小范围内找，不可能对整张105°广角图跑阈值分割。
+**Significance**: automatically find the "eye" local region within the full frame — this is the prerequisite step for pupil detection, since the pupil-detection algorithm needs to know which small region to search within; it's not feasible to run threshold segmentation on the entire 105° wide-angle frame.
 
-**方法/平台**：OpenCV **Haar cascade**（经典机器学习方法，Viola-Jones 框架训练出的级联分类器，不是深度学习）。两级定位：先在全画面找人脸（缩小搜索范围），再在人脸区域内找眼睛。
+**Method/platform**: OpenCV's classic **Haar cascade** (a cascaded classifier trained with the Viola-Jones framework — a classical machine-learning method, not deep learning). Two-stage localization: first find the face in the full frame (narrowing the search range), then find the eye within the face region.
 
 ```python
 def detect_eye(gray_frame):
     faces = face_cascade.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(100, 100))
     if len(faces) == 0:
         return None
-    fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])  # 取最大的人脸
+    fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])  # take the largest face
     face_roi = gray_frame[fy:fy + fh, fx:fx + fw]
     eyes = eye_cascade.detectMultiScale(face_roi, scaleFactor=1.1, minNeighbors=8, minSize=(20, 20))
     if len(eyes) == 0:
@@ -244,60 +248,63 @@ def detect_eye(gray_frame):
     return (fx + ex, fy + ey, ew, eh)
 ```
 
-同时提供手动兜底方案：按 `m` 键用 `cv2.selectROI()` 手动框选，应对自动检测失败的情况。
+Also provides a manual fallback: pressing `m` lets you manually box an ROI via `cv2.selectROI()`, for when automatic detection fails.
 
-**统计方法**：
+**Statistical method**:
 
 ```
-命中率 = auto_detect_hits / auto_detect_attempts × 100%
+hit_rate = auto_detect_hits / auto_detect_attempts × 100%
 ```
 
-每一帧都计入分母（不管成功与否），这是一个"尝试即计数"的指标，和后面第六c阶段对瞳孔检测引入的"公平帧筛选"方法不同——第五阶段的命中率本身就是目的（衡量这个检测器在真实连续视频流中的稳定性），不需要排除困难样本。
+Every frame counts toward the denominator (whether successful or not) — this is a "count every attempt" metric, different from the "fair-frame filtering" method applied to pupil detection later in Stage 6c — Stage 5's hit rate is itself the goal being measured (how stable this detector is on a real continuous video stream), it doesn't need to exclude difficult samples.
 
-### 实测数据
-| 指标       | 数值        |
+### Measured data
+| Metric | Value |
 | -------- | --------- |
-| 自动检测尝试帧数 | 21868     |
-| 自动检测命中帧数 | 3390      |
-| **命中率**  | **15.5%** |
-| 保存的ROI样本 | 20张       |
-![[eye_auto_1791110451544.png|63]]![[eye_auto_1791110458032.png|64]]![[eye_auto_1791110463868.png|63]]![[eye_auto_1791110470346.png|66]]![[eye_auto_1791110476010.png|65]]![[eye_auto_1791110483568.png|66]]![[eye_auto_1791110489040.png|66]]![[eye_auto_1791110489040.png|66]]![[eye_auto_1791110508589.png|66]]![[eye_auto_1791110520214.png|65]]
-![[eye_auto_1791110526371.png|65]]![[eye_auto_1791110532023.png|65]]![[eye_auto_1791110543489.png|65]]![[eye_auto_1791110546870.png|64]]![[eye_auto_1791110551599.png|65]]![[eye_auto_1791110559134.png|65]]![[eye_auto_1791110569645.png|65]]![[eye_auto_1791110687750.png|65]]![[eye_auto_1791110693926.png|65]]![[eye_auto_1791110698797.png|64]]
-**结论**：命中率不稳定，符合预期——Haar cascade对头部姿态、光照变化敏感，这是经典方法在非受控环境下的典型表现，不是bug。
+| Automatic-detection attempted frames | 21868     |
+| Automatic-detection successful frames | 3390      |
+| **Hit rate**  | **15.5%** |
+| Saved ROI samples | 20 |
+
+![Eye ROI samples](images_vault_root/Pasted%20image%2020261009120921.png)
+
+**Conclusion**: the hit rate is unstable, as expected — a Haar cascade is sensitive to head pose and lighting changes, a typical limitation of a classical method in an uncontrolled environment, not a bug.
 
 ---
 
-## 6. 第六阶段：初步瞳孔检测（核心发现）—— 无IR基线
+## 6. Stage 6: Initial Pupil Detection (A Key Finding) — No-IR Baseline
 
-这是整个 Phase 2 最关键的一个阶段，详细记录方法、两轮测试、以及**视觉复核推翻初步结论**的完整过程。
+This is the single most important stage in Phase 2 — the method, the two test rounds, and the complete process of **a visual review overturning the initial conclusion** are recorded in detail.
 
-### 6.1 方法：经典图像处理流水线
+### 6.1 Method: classical image-processing pipeline
 
 ```
-grayscale → Gaussian blur → Otsu阈值 → 形态学开闭运算 → 轮廓检测 → 候选筛选 → 椭圆拟合
+grayscale → Gaussian blur → Otsu threshold → morphological open/close → contour detection → candidate filtering → ellipse fit
 ```
 
-逐步拆解每一步的作用和背后的统计/几何计算：
+Breaking down the role and underlying statistics/geometry behind each step:
 
 ```python
 def detect_pupil(gray):
     h, w = gray.shape
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)  # 高斯模糊降噪，减少睫毛纹理造成的假边缘
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)  # Gaussian blur to reduce noise, cutting down false edges caused by eyelash texture
 
-    # Otsu自动阈值：在灰度直方图上自动找到一个阈值，使得阈值分割后
-    # 两类像素（前景/背景）各自的类内方差之和最小（等价于最大化类间方差）
-    # THRESH_BINARY_INV 把暗区域（瞳孔应该是全图最暗的结构）变成白色前景
+    # Otsu auto-threshold: automatically finds a threshold on the grayscale histogram such that
+    # the sum of within-class variance of the two classes (foreground/background) after thresholding is minimized
+    # (equivalently maximizing between-class variance)
+    # THRESH_BINARY_INV turns the dark region (the pupil should be the darkest structure in the image) into white foreground
     _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
-    # 形态学闭运算（先膨胀后腐蚀）：填补瞳孔内部因反光高光造成的小孔洞
-    # 形态学开运算（先腐蚀后膨胀）：去掉孤立的小噪声点
+    # Morphological closing (dilate then erode): fills small holes inside the pupil caused by specular highlights
+    # Morphological opening (erode then dilate): removes isolated small noise specks
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=2)
     binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
 
     contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # 候选筛选：面积占比（排除噪声点和占满全图的眼睑阴影）、长宽比（瞳孔应接近圆形）
+    # Candidate filtering: area fraction (excludes noise specks and eyelid-shadow regions that fill the whole frame),
+    # aspect ratio (a pupil should be nearly circular)
     frame_area = h * w
     candidates = []
     for c in contours:
@@ -309,30 +316,32 @@ def detect_pupil(gray):
         if aspect < 0.5 or aspect > 2.0:
             continue
         perimeter = cv2.arcLength(c, True)
-        # 圆度公式：4π×面积/周长² ，完美圆=1.0，越不规则越接近0
+        # Circularity formula: 4π×area/perimeter², a perfect circle = 1.0, more irregular shapes approach 0
         circularity = 4 * np.pi * area / (perimeter ** 2)
         candidates.append((c, area, aspect, circularity))
 
-    candidates.sort(key=lambda t: t[3], reverse=True)  # 取圆度最高的候选
+    candidates.sort(key=lambda t: t[3], reverse=True)  # take the candidate with the highest circularity
     best_c, best_area, best_aspect, best_circ = candidates[0]
 
-    if best_circ < THRESHOLD:  # 见6.3节，这个阈值的取值经过了一次重要修正
-        return 失败
+    if best_circ < THRESHOLD:  # see Section 6.3 — this threshold's value underwent one important correction
+        return failure
 
-    ellipse = cv2.fitEllipse(best_c)  # 对轮廓点做最小二乘椭圆拟合，得到(中心,长短轴,旋转角)
+    ellipse = cv2.fitEllipse(best_c)  # least-squares ellipse fit on the contour points, giving (center, major/minor axes, rotation angle)
     ...
 ```
 
-**圆度（circularity）指标的统计意义**：`4π×area/perimeter²` 是等周不等式给出的几何量，衡量一个闭合形状与标准圆的接近程度，这里用作"这个轮廓是不是真的瞳孔"的置信度代理——瞳孔在近似正视角度下应接近圆形/椭圆形，被高光、眼睑、睫毛污染的轮廓形状会明显偏离圆形。
+**Statistical meaning of the circularity metric**: `4π×area/perimeter²` is a geometric quantity given by the isoperimetric inequality, used here as a confidence proxy for "is this contour really the pupil" — under a roughly frontal gaze angle, the pupil should be nearly circular/elliptical, while a contour contaminated by highlights, eyelids, or eyelashes will noticeably deviate from circularity.
 
-### 6.2 第一轮测试（圆度阈值0.5）
-对第五阶段保存的20张ROI样本跑检测：**2张"成功"（10%）**。
+### 6.2 First round of testing (circularity threshold 0.5)
+Ran detection on the 20 ROI samples saved in Stage 5: **2 "successes" (10%)**.
 
-### 6.3 视觉复核——推翻了"10%成功"这个初步结论
+### 6.3 Visual review — overturning the initial "10% success" conclusion
 
-**这是报告中最重要的方法论环节**：没有止步于"程序输出success=True"就采信，而是用 Read 工具实际打开这2张"成功"样本的标注图核查——发现**两例都是误报**：拟合出的椭圆中心被瞳孔内的环境光反光高光点"带偏"，并没有真正落在瞳孔几何中心上，只是碰巧圆度数值达标。
-![[annotated_eye_auto_1791110551599.png|330]]![[annotated_eye_auto_1791110463868.png|329]]
-**修正措施**：把圆度阈值从 0.5 提高到 0.75，代码里保留了这段修改记录：
+**This is the single most important methodological moment in the report**: instead of stopping at "the program output success=True" and accepting it, we used the Read tool to actually open the annotated images for these 2 "successful" samples for review — and found **both were false positives**: the fitted ellipse's center was pulled off by a specular highlight on the pupil's surface, not actually landing on the pupil's true geometric center — it just happened to hit the circularity threshold by chance.
+
+![Annotated sample 1](data/processed/pupil/annotated_eye_auto_1791110551599.png) ![Annotated sample 2](data/processed/pupil/annotated_eye_auto_1791110463868.png)
+
+**Corrective action**: raised the circularity threshold from 0.5 to 0.75, keeping this change recorded in the code:
 
 ```python
 # Threshold raised from 0.5 to 0.75 after visual audit: at 0.5, two detections
@@ -344,61 +353,62 @@ if best_circ < 0.75:
     return result
 ```
 
-### 6.4 第二轮测试（圆度阈值0.75）：**20张样本，0张通过（0.0%）**
+### 6.4 Second round of testing (circularity threshold 0.75): **20 samples, 0 passed (0.0%)**
 
-实际输出记录（`data/results/pupil_detection.csv` 节选）：
+Actual output record (excerpt from `data/results/pupil_detection.csv`):
 ```
 eye_auto_1791110451544.png,False,best candidate circularity too low (0.18),nan,nan,0.0
 eye_auto_1791110470346.png,False,best candidate circularity too low (0.56),nan,nan,0.0
-...（20张全部FAILED）
+...(all 20 FAILED)
 ```
 
-### 6.5 失败根因分析（硬件限制，非算法参数问题）
+### 6.5 Root-cause analysis of the failure (a hardware limitation, not an algorithm-parameter problem)
 
-1. **无IR照明**：环境光在瞳孔表面产生多个高光反射点（catchlight），阈值分割后本应连通的暗色瞳孔区域被切割成不规则碎片，破坏圆度判定。
-2. **深色虹膜-瞳孔对比度低**：东亚人群虹膜颜色深，可见光下虹膜与瞳孔灰度差异不足，Otsu全局阈值无法稳定区分二者。
-3. **105°广角FOV**：眼部区域占比小，ROI裁剪后有效分辨率低。
-4. **无IR-cut滤光片**：传感器光谱响应与主流可见光眼动算法的默认假设不同。
+1. **No IR illumination**: ambient light creates multiple specular highlight points (catchlight) on the pupil's surface; after threshold segmentation, the dark pupil region, which should be a single connected blob, gets cut into irregular fragments, breaking the circularity judgment.
+2. **Low contrast between dark iris and pupil**: East Asian populations tend to have dark irises, so under visible light the grayscale difference between iris and pupil is insufficient for a global Otsu threshold to reliably separate them.
+3. **105° wide-angle FOV**: the eye region occupies only a small fraction of the frame, so after ROI cropping, the effective resolution is low.
+4. **No IR-cut filter**: the sensor's spectral response differs from the default visible-light assumption of most mainstream eye-tracking datasets/algorithms.
 
-**结论：在当前硬件条件下，经典阈值+轮廓+椭圆拟合方法无法稳定定位瞳孔中心，这是硬件限制导致的根本性瓶颈，不是算法参数可以调出来的问题。**
+**Conclusion: under the current hardware conditions, the classical threshold + contour + ellipse-fit method cannot reliably localize the pupil center — this is a fundamental bottleneck caused by a hardware limitation, not something that can be tuned out with algorithm parameters.**
 
-这个阶段体现的方法论原则：**一个量化成功率数字必须经过视觉核查才能采信，尤其是在样本量小（20张）、失败模式已知多样（高光/睫毛/眼睑）的情况下**。
+The methodological principle this stage embodies: **a quantified success-rate number can only be trusted after visual review, especially when the sample size is small (20 images) and the known failure modes are already diverse (highlights/eyelashes/eyelids)**.
 
 ---
 
-## 7. 第七～十阶段代码框架搭建（第一轮，10/4，暂未运行）
+## 7. Stages 7–10 Code Framework Build-out (first round, 10/4, not yet run)
 
-在确认无IR条件下瓶颈无法通过算法调参解决后，用户决策："1+3"方案——诚实记录第六阶段结论为"待IR硬件"，同时提前搭建好后续阶段的工程框架，使其能正确处理 NaN/confidence=0，等硬件到货后可以直接插入更好的检测器复测，不需要重新搭建整条链路。
+Having confirmed that under no-IR conditions the bottleneck can't be solved by algorithm tuning, the user decided on a "1+3" approach: honestly record Stage 6's conclusion as "pending IR hardware," while in the meantime building out the downstream engineering framework for the later stages, so that it correctly handles NaN/confidence=0, and once the hardware arrives, a better detector can be dropped in directly for re-testing without rebuilding the whole chain.
 
-### 7.1 共享检测模块 `pupil_detector.py`
-把 `detect_eye()` 和 `detect_pupil()` 从各个脚本里抽出来做成一个独立模块，所有后续脚本统一从这里 import。**这是一个典型的"分离关注点"工程决策**：检测算法的迭代（未来换成IR优化版本、甚至深度学习模型）只需要改这一个文件，实时显示、CSV记录、标定计算这些下游逻辑完全不用动。
+### 7.1 Shared detection module `pupil_detector.py`
+Extracted `detect_eye()` and `detect_pupil()` out of the individual scripts into one standalone module, which all subsequent scripts import from uniformly. **This is a classic "separation of concerns" engineering decision**: iterating on the detection algorithm (future swaps to an IR-optimized version, or even a deep-learning model) only requires changing this one file; the downstream logic (real-time display, CSV logging, calibration computation) doesn't need to change at all.
 
-### 7.2 `eye_tracking_realtime.py`（第七+八阶段：实时可视化 + 数据记录）
-构建内容：
-- 实时窗口显示瞳孔中心（红点）、轮廓（蓝线）、拟合椭圆（绿线）
-- 屏幕叠加文字实时显示 timestamp / pupil_x / pupil_y / confidence（按项目要求，不能只画图不显示数字）
-- 逐帧写入 `gaze_raw.csv`：检测失败的帧，`pupil_x`/`pupil_y` 写 `NaN`、`confidence` 写 `0`，不伪造数据
-- 会话结束写 `metadata.json`：记录分辨率、本次会话的真实测量FPS（同样用"帧数/经过时间"方法，而不是叫cv2上报）
+### 7.2 `eye_tracking_realtime.py` (Stages 7+8: real-time visualization + data logging)
+What it builds:
+- Real-time window showing the pupil center (red dot), contour (blue line), fitted ellipse (green line)
+- On-screen text overlay showing timestamp / pupil_x / pupil_y / confidence in real time (per the project requirement, not just drawing — displaying the numbers too)
+- Writes to `gaze_raw.csv` frame by frame: for a failed-detection frame, `pupil_x`/`pupil_y` are written as `NaN` and `confidence` as `0` — no data is fabricated
+- Writes `metadata.json` at session end: recording resolution and this session's real measured FPS (using the same "frame count / elapsed time" method, not trusting cv2's reported value)
 
-### 7.3 `gaze_experiment.py`（第九阶段：5点相对注视实验）
-构建内容：显示左/中/右/上/下5个方向的视觉目标，每个保持3秒，记录该时段内的瞳孔位置。输出两张图：
-- pupil_x 随时间变化的轨迹图
-- pupil_x vs pupil_y 的散点图，按目标方向着色
+### 7.3 `gaze_experiment.py` (Stage 9: 5-point relative gaze experiment)
+What it builds: displays left/center/right/up/down visual targets, holding each for 3 seconds, recording pupil position during that interval. Outputs two charts:
+- pupil_x over time trajectory chart
+- pupil_x vs pupil_y scatter plot, colored by target direction
 
-**命名规范的刻意选择**：图表和变量命名统一使用"relative pupil position"/"relative gaze proxy"，不用"absolute gaze coordinates"——因为此时还没有做标定，像素坐标到实际视线角度之间没有建立映射关系，用"绝对"这个词会过度承诺。
+**A deliberate naming choice**: chart and variable names uniformly use "relative pupil position"/"relative gaze proxy," never "absolute gaze coordinates" — because at this point no calibration has been done, and there is no established mapping between pixel coordinates and actual gaze angle; using the word "absolute" would overclaim.
 
-### 7.4 `calibration.py`（第十阶段：5点标定）
-构建内容：显示5个标定点（四角+中心），记录每点对应的瞳孔位置均值，用最小二乘法拟合一个2D仿射变换：
+### 7.4 `calibration.py` (Stage 10: 5-point calibration)
+What it builds: displays 5 calibration points (four corners + center), recording the mean pupil position for each point, and fitting a 2D affine transform via least squares:
 
 ```python
 def fit_affine(pupil_pts, screen_pts):
     """
-    求解 screen = A @ [pupil_x, pupil_y, 1]ᵗ，A是2×3矩阵
-    用 numpy.linalg.lstsq 做最小二乘拟合（不是神经网络，按项目要求使用可解释的经典方法）
+    Solve screen = A @ [pupil_x, pupil_y, 1]ᵗ, where A is a 2×3 matrix
+    Using numpy.linalg.lstsq for the least-squares fit (not a neural network —
+    per the project requirement, use an interpretable classical method)
     """
     n = len(pupil_pts)
     if n < 3:
-        return None  # 少于3点无法唯一确定仿射变换，明确返回失败而不是强行拟合
+        return None  # fewer than 3 points can't uniquely determine an affine transform, explicitly return failure rather than forcing a fit
     X = np.hstack([pupil_pts, np.ones((n, 1))])
     A = np.zeros((2, 3))
     for dim in range(2):
@@ -407,32 +417,36 @@ def fit_affine(pupil_pts, screen_pts):
     return A
 ```
 
-标定误差计算方法：用同样的5个点做预测，计算预测位置与真实目标位置的欧氏距离，取平均：
+Calibration-error calculation method: use the same 5 points to predict, then compute the mean Euclidean distance between predicted position and true target position:
 
 ```
 calibration_error = mean( ||predicted_i - target_i||₂ )  for i in 1..5
 ```
 
-报告里特别注明：这是**同一批数据拟合+评估**（不是独立测试集），只是可行性检查，不是严谨的泛化误差估计，避免过度包装这个数字的含义。
+The report specifically notes: this is **fitting and evaluating on the same batch of data** (not an independent test set), it's only a feasibility check, not a rigorous generalization-error estimate — to avoid over-dressing this number's meaning.
 
 ---
 
-## 7a. 第六c阶段：850nm IR 照明到货复测（10/8）
+## 7a. Stage 6c: 850nm IR Illumination Arrives, Re-test (10/8)
 
-### 7a.1 硬件变更
-用户采购850nm IR补光LED。选择理由：OV9281对850nm的量子效率高于940nm，配合其本身"无IR-cut滤光片"的特点可以最大化利用这颗灯。安装位置**离轴**于镜头光轴，避免形成"亮瞳效应"（bright pupil，类似红眼效果，瞳孔会变亮而不是暗，直接违背检测算法"找暗区域"的假设）。
+### 7a.1 Hardware change
+The user purchased an 850nm IR fill LED. Selection rationale: OV9281's quantum efficiency is higher at 850nm than at 940nm, which, combined with its lack of an IR-cut filter, maximizes the use of this one light. Mounting position is **off-axis** from the lens's optical axis, to avoid a "bright pupil effect" (similar to red-eye, where the pupil turns bright rather than dark — directly violating the detection algorithm's assumption of "look for the dark region").
 
-### 7a.2 过程中的三次失败尝试（如实记录排错过程）
+### 7a.2 Three failed attempts along the way (honestly recorded)
 
-**尝试1——对照组本身无效**：开灯/关灯两组对照拍摄之间，头部位置发生了明显移动，两组画面内容完全不同（一组有脸，一组是背景墙）。判定依据：直接用 Read 工具查看两组图片，肉眼确认画面内容不一致，数据作废，不纳入任何统计。
+**Attempt 1 — the control itself was invalid**: between the light-on/light-off paired shots, the head position moved noticeably — the two sets of frames showed completely different content (one had a face, the other was just the background wall). Basis for this judgment: used the Read tool to directly view both sets of images, visually confirming the frame content didn't match — the data was voided, not included in any statistics.
 
-**尝试2——程序化曝光锁定不可靠**：改为固定头部位置，用 `cv2.CAP_PROP_AUTO_EXPOSURE`/`CAP_PROP_EXPOSURE` 锁定曝光参数后再做开关灯对比，结果IR ON组图像均值只有4-5/255（接近纯黑）。排查方法：直接查看原始图片，确认是真的全黑而非编码问题。推断根因：该UVC驱动对曝光参数的程序化控制行为不可靠（可能是LED点光源被镜头直接/间接看到，触发板载自动曝光骤降保护）。**决策：放弃"锁定曝光比较亮度数值"的方法**，改用更稳健的判断依据。
-![[Pasted image 20261009123006.png]]
-**尝试3前的意外发现——camera index 已经变化**：改用自动曝光、直接做瞳孔检测对比时，画面依然全黑。重新运行 `identify_camera.py` 核查发现：10/4确认的 `index 1 = OV9281` 映射，在某次 USB 重新枚举后变成了 `index 0 = OV9281`。这不是推测，是重新跑这个脚本、用 Read 工具视觉比对两张新截图后确认的事实（index 0 这次输出黑白广角画面，index 1 输出带微弱色彩倾向的画面）。**所有脚本的 `CAMERA_INDEX` 常量已更正为0，并加注释提醒：camera index不是永久常量，每次出现异常都应先用 identify_camera.py 复核，而不是假设硬件问题。**
-![[作品集/课程/261004/data/ir_test/ir_off/frame_00.png|221]]![[作品集/课程/261004/data/ir_test/ir_off/frame_01.png|221]]![[作品集/课程/261004/data/ir_test/ir_off/frame_02.png|220]]
-### 7a.3 修正后的正式测试：`ir_pupil_test.py`
+**Attempt 2 — programmatic exposure locking was unreliable**: switched to fixing the head position, and used `cv2.CAP_PROP_AUTO_EXPOSURE`/`CAP_PROP_EXPOSURE` to lock the exposure parameters before doing the light-on/off comparison — the result was that the IR-ON group's image mean was only 4-5/255 (close to pure black). Diagnosis method: directly viewed the raw images, confirming it was genuinely all-black, not an encoding issue. Inferred root cause: this UVC driver's programmatic control of exposure parameters is unreliable (possibly the LED point light source was seen directly/indirectly by the lens, triggering the board's onboard auto-exposure protective crash). **Decision: abandon the "lock exposure, compare brightness values" method**, switch to a more robust judgment basis.
 
-**构建内容**：把ROI采集和瞳孔检测合并到一个脚本里，实时显示绿框+文字提示，按 `s` 键即存图又立即跑检测并打印结果，按 `q` 退出后自动汇总统计、写CSV。这样设计是为了**减少反复开关灯测试对眼部的IR照射次数**（用户此前已经提出过这方面的安全关注）。
+![Exposure lock test](images_vault_root/Pasted%20image%2020261009123006.png)
+
+**Pre-Attempt-3 unexpected discovery — the camera index had already changed**: switching to auto-exposure and directly doing a pupil-detection comparison, the frame was still all-black. Re-ran `identify_camera.py` to check and found: the `index 1 = OV9281` mapping confirmed on 10/4 had, after a USB re-enumeration event, become `index 0 = OV9281`. This isn't a guess — it was confirmed by re-running this exact script and visually comparing two new screenshots with the Read tool (this time index 0 output the monochrome wide-angle image, index 1 output an image with a faint color tint). **All scripts' `CAMERA_INDEX` constant has been corrected to 0, with a comment added as a reminder: the camera index is not a permanent constant — whenever anything looks off, re-verify with identify_camera.py first, rather than assuming a hardware problem.**
+
+![IR off test frame 1](data/ir_test/ir_off/frame_00.png) ![IR off test frame 2](data/ir_test/ir_off/frame_01.png) ![IR off test frame 3](data/ir_test/ir_off/frame_02.png)
+
+### 7a.3 The corrected formal test: `ir_pupil_test.py`
+
+**What it builds**: merges ROI capture and pupil detection into one script, showing a real-time green box + text prompt; pressing `s` saves the image and immediately runs detection, printing the result; pressing `q` quits and auto-summarizes statistics, writing a CSV. This design is meant to **reduce how many times the eye is repeatedly exposed to IR light during light-on/off switching tests** (the user had already raised a safety concern on this front earlier).
 
 ```python
 def main():
@@ -440,991 +454,1007 @@ def main():
     while True:
         ret, frame = cap.read()
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        roi = detect_eye(gray)  # 复用pupil_detector.py里第五阶段的Haar cascade检测
+        roi = detect_eye(gray)  # reuses the Stage 5 Haar cascade detector from pupil_detector.py
         ...
         key = cv2.waitKey(1) & 0xFF
         if key == ord('s') and roi is not None:
             x, y, w, h = roi
             eye_gray = gray[y:y+h, x:x+w]
-            cv2.imwrite(EYE_IR_DIR + fname, eye_gray)       # 原始ROI存档
-            pres = detect_pupil(eye_gray)                    # 立即跑检测
-            # 画椭圆/轮廓/中心点，并打印SUCCESS/FAILED到终端
+            cv2.imwrite(EYE_IR_DIR + fname, eye_gray)       # save the raw ROI
+            pres = detect_pupil(eye_gray)                    # immediately run detection
+            # draw the ellipse/contour/center point, print SUCCESS/FAILED to the terminal
             ...
-    # 退出后写入汇总CSV：pupil_detection_ir.csv
+    # after exiting, write a summary CSV: pupil_detection_ir.csv
 ```
 
-**采集结果**：100张样本，`pupil_detector.py`（与第六阶段完全相同的代码，未调整任何参数）给出的原始统计：
-![[Pasted image 20261009120921.png]]
-![[Pasted image 20261009120952.png]]
-![[Pasted image 20261009121019.png]]
-![[Pasted image 20261009121042.png]]
-![[Pasted image 20261009123143.png|231]]![[Pasted image 20261009123225.png|231]]![[Pasted image 20261009123352.png|231]]
-![[Pasted image 20261009123416.png|231]]![[Pasted image 20261009123451.png|232]]![[Pasted image 20261009123614.png|231]]
+**Collection result**: 100 samples; `pupil_detector.py` (the exact same code as Stage 6, no parameters adjusted at all) gave the following raw statistics:
+
+![IR test result 1](images_vault_root/Pasted%20image%2020261009120952.png)
+![IR test result 2](images_vault_root/Pasted%20image%2020261009121019.png)
+![IR test result 3](images_vault_root/Pasted%20image%2020261009121042.png)
+![IR test result 4](images_vault_root/Pasted%20image%2020261009123143.png) ![IR test result 5](images_vault_root/Pasted%20image%2020261009123225.png) ![IR test result 6](images_vault_root/Pasted%20image%2020261009123352.png)
+![IR test result 7](images_vault_root/Pasted%20image%2020261009123416.png) ![IR test result 8](images_vault_root/Pasted%20image%2020261009123451.png) ![IR test result 9](images_vault_root/Pasted%20image%2020261009123614.png)
+
 ```
 Total: 100, Success: 22, Rate: 22.0%
 Mean confidence (successes only): 0.862
 ```
 
-### 7a.4 关键方法论步骤：区分"公平测试帧"与"不公平测试帧"
+### 7a.4 A key methodological step: distinguishing "fair test frames" from "unfair test frames"
 
-用户在看到22%这个数字后提出的关键问题：**如果100张里有些样本本身就是闭眼/过曝/失焦，这些样本根本不构成对检测算法的公平测试，不该被计入分母**。这个意见直接推动了下面这套审计方法。
+The key question the user raised on seeing this 22% figure: **if some of the 100 samples are themselves eyes-closed/overexposed/out-of-focus, those samples don't constitute a fair test of the algorithm at all, and shouldn't be counted in the denominator**. This observation directly drove the auditing method below.
 
-**方法**：不用算法自动猜测"睁眼/闭眼/模糊"这类视觉状态（那样只是把一个未经验证的判断换成另一个未经验证的判断），而是生成人工可视化联系表，逐张目视分类。
+**Method**: rather than having an algorithm guess at "open/closed/blurry" visual states (which would just swap one unvalidated judgment for another), generate a manually inspectable contact sheet and classify every single image by eye.
 
 ```python
-# ir_audit_contact_sheet.py 核心逻辑
-# 把100张ROI缩略图按5x5排布成4张联系表，每张缩略图下标注序号+检测器判定(OK/FAIL)
+# ir_audit_contact_sheet.py core logic
+# arrange 100 ROI thumbnails into 4 contact sheets of 5x5, each thumbnail labeled with its index + detector verdict (OK/FAIL)
 for i, row in enumerate(batch):
     global_idx = sheet_idx * PER_SHEET + i
     img = cv2.imread(EYE_IR_DIR + row["filename"], cv2.IMREAD_GRAYSCALE)
     thumb = cv2.resize(img, (140, 140))
     ...
     label = f"#{global_idx} {'OK' if success else 'FAIL'}"
-    cv2.putText(canvas, label, ..., color=绿色if成功else红色)
-# 同时生成一份带空白分类列的模板CSV，供逐条填写visual_eye_state和fair_test
+    cv2.putText(canvas, label, ..., color=green if success else red)
+# also generates a CSV template with a blank classification column, for filling in visual_eye_state and fair_test one by one
 ```
 
-**人工目视分类结果**（逐张核查全部100张缩略图，详见`data/results/ir_audit_contact_sheets/sheet_00~03.png`）：
-![[sheet_00.png|331]]![[sheet_01.png|330]]
-![[sheet_02.png|330]]![[sheet_03.png|331]]
+**Manual visual classification results** (all 100 thumbnails individually reviewed, see `data/results/ir_audit_contact_sheets/sheet_00~03.png` for details):
 
-| 类别 | 数量 | 判定依据 |
+![Audit sheet 0](data/results/ir_audit_contact_sheets/sheet_00.png) ![Audit sheet 1](data/results/ir_audit_contact_sheets/sheet_01.png)
+![Audit sheet 2](data/results/ir_audit_contact_sheets/sheet_02.png) ![Audit sheet 3](data/results/ir_audit_contact_sheets/sheet_03.png)
+
+| Category | Count | Basis for judgment |
 |---|---|---|
-| 严重失焦/模糊 | 14张（#12-17, #26-33） | 虹膜纹理完全不可辨认，呈连续簇分布在采集序列中段，疑似对焦漂移 |
-| 眼睑遮挡/极端角度 | 5张（#3,#9,#10,#20,#21） | 瞳孔形状被眼睑或视线角度切断 |
-| **不公平帧合计** | **19张** | 不计入成功率分母 |
-| 公平帧（睁眼、对焦正常） | 81张 | 构成对检测算法的有效测试 |
+| Severely out of focus/blurry | 14 (#12-17, #26-33) | iris texture completely indiscernible, forming a continuous cluster in the middle of the capture sequence, suspected focus drift |
+| Eyelid occlusion/extreme angle | 5 (#3,#9,#10,#20,#21) | pupil shape cut off by the eyelid or viewing angle |
+| **Total unfair frames** | **19** | not counted in the success-rate denominator |
+| Fair frames (eyes open, normal focus) | 81 | constitute a valid test of the detection algorithm |
 
-**交叉验证**：19张不公平帧中，检测器"成功"的数量 = **0**。这一步很关键——确认了不公平帧没有"蒙对"污染过原始22%这个数字，排除了统计上的侥幸因素。
+**Cross-validation**: among the 19 unfair frames, the number the detector marked "successful" = **0**. This step matters — it confirms the unfair frames didn't happen to pollute the original 22% figure with lucky hits, ruling out that statistical fluke.
 
-**调整后成功率计算**：
+**Adjusted success-rate calculation**:
 ```
-原始成功率 = 22/100 = 22.0%
-调整后成功率（仅公平帧） = 22/81 = 27.2%
+Raw success rate = 22/100 = 22.0%
+Adjusted success rate (fair frames only) = 22/81 = 27.2%
 ```
 
-两个数字都报告出来，并说明分母选择的依据,不是挑一个"好看"的数字呈现。
+Both numbers are reported, with the basis for the denominator choice explained — not cherry-picking whichever number "looks good."
 
-### 7a.5 新发现的失败模式：角膜二次反射
-在失败样本中进一步发现10张（#90-99）呈现一种与"IR灯高光"不同性质的干扰：角膜表面二次反射出文字状亮斑（推断是键盘或显示器发光文字经角膜反射进入画面）。这提示瞳孔检测的环境干扰源不止IR灯本身，周边其他发光物体的反射同样需要控制。
-![[Pasted image 20261009121501.png]]
-### 7a.6 与第六阶段（无IR）对比
+### 7a.5 A newly discovered failure mode: secondary corneal reflection
+Among the failed samples, a further 10 (#90-99) showed an interference of a different nature from "IR-light highlight": a text-shaped bright spot appearing on the cornea's surface (inferred to be keyboard or monitor-display text reflected into the frame via the cornea). This suggests the environmental interference source for pupil detection isn't limited to the IR light itself — reflections from other surrounding light-emitting objects also need to be controlled.
 
-| 指标 | 无IR（第六阶段） | 有IR（第六c阶段） |
+![Corneal reflection artifact](images_vault_root/Pasted%20image%2020261009121501.png)
+
+### 7a.6 Comparison with Stage 6 (no IR)
+
+| Metric | No IR (Stage 6) | With IR (Stage 6c) |
 |---|---|---|
-| 真实成功率（视觉核查后） | 0/20 (0%) | 22/81 (27.2%)，公平帧口径 |
-| 成功样本平均confidence | 0.565/0.595（确认为误报，真实成功率0%） | 0.862（确认为真实有效检测） |
-| 主要失败原因 | 高光破坏瞳孔形状、对比度低 | 对比度不足/反光干扰仍存在；另有19%样本因失焦/遮挡不构成公平测试 |
+| True success rate (after visual review) | 0/20 (0%) | 22/81 (27.2%), fair-frame basis |
+| Mean confidence of successful samples | 0.565/0.595 (confirmed as false positives, true success rate 0%) | 0.862 (confirmed as genuinely valid detections) |
+| Main failure cause | highlights breaking pupil shape, low contrast | reflective interference still present despite adequate contrast; another 19% of samples didn't constitute a fair test due to out-of-focus/occlusion |
 
-**结论**：IR照明把真实成功率从0%提升到约27%，证明IR照明方向有效，但远未达到可用于连续追踪的稳定性。59/81的"公平但失败"样本说明算法本身（经典阈值分割）的鲁棒性仍是瓶颈，不能只靠光源解决全部问题；同时19%的失焦/遮挡样本提示头部稳定性和对焦机制是另一个需要解决的工程问题。
+**Conclusion**: IR illumination raised the true success rate from 0% to about 27%, confirming the IR-illumination direction is effective, but still far from stable enough for continuous tracking. 59 of the 81 "fair but failed" samples indicate the algorithm itself (classical threshold segmentation) still has a robustness bottleneck that can't be solved by the light source alone; meanwhile the 19% out-of-focus/occlusion samples suggest head stability and focus mechanism are another engineering problem to solve.
 
 ---
 
-## 7b. 第六d阶段：GC0308专用眼动模组平行硬件路线测试（10/8～10/9）
+## 7b. Stage 6d: GC0308 Dedicated Eye-Tracking Module Parallel Hardware Route Test (10/8~10/9)
 
-### 7b.1 背景与动机
-用户新获得一个成品模组（"120帧高速眼球追踪动态捕捉虹膜识别USB摄像头模组GC0308红外夜视"），这是一个与 OV9281 完全独立的**平行硬件路线**：内置IR照明、近距离光学设计，理论上可能同时解决 OV9281 路线暴露出的"105°广角导致眼部占比过小"和"需要外挂IR光源"两个核心短板。测试目的：验证这条平行路线是否比 OV9281+外挂IR（27.2%）更优，而不是替代既有结论。
-![[a1b0b5c49ff1b97570959aedb30f8e91.jpg|292]]
-为避免与 OV9281 数据混淆，本轮测试单独建立子目录 `gc0308/`，复用相同的 `pupil_detector` 算法代码（未改参数）以保证可比性。
+### 7b.1 Background and motivation
+The user obtained an off-the-shelf module ("120fps high-speed eye-tracking motion-capture iris-recognition USB camera module GC0308 IR night-vision") — a **parallel hardware route** completely independent of the OV9281, with built-in IR illumination and a close-range optical design, in theory potentially solving both core shortcomings exposed by the OV9281 route at once ("105° wide-angle causing the eye to occupy too small a fraction of the frame" and "requiring an external IR light source"). Test goal: validate whether this parallel route beats OV9281+external IR (27.2%), not replace the existing conclusion.
 
-### 7b.2 设备识别（方法同第二阶段）
-第一次尝试：模组离眼睛太远（用户尚未来得及拿稳就被拍到），图像模糊不可用，判定为无效样本，不纳入统计，重新采集。
-第二次尝试（近距离，3-5cm量级）：清晰拍到虹膜纹理、瞳孔边界、两个IR反光高光点，确认 **index 1 = GC0308**（单色、近距离特征），index 0 = Integrated Camera（彩色，与此前结论一致）。
+![GC0308 module photo](images_vault_root/a1b0b5c49ff1b97570959aedb30f8e91.jpg)
 
-### 7b.3 FPS实测（方法同第二阶段：真实帧数/经过时间，不信任CAP_PROP_FPS或商品标称）
+To avoid mixing up with OV9281 data, this round of testing set up a separate subdirectory `gc0308/`, reusing the same `pupil_detector` algorithm code (no parameters changed) to ensure comparability.
 
-| 分辨率 | 实测FPS | 驱动上报FPS（CAP_PROP） |
+### 7b.2 Device identification (same method as Stage 2)
+First attempt: the module was too far from the eye (the user hadn't managed to hold it steady before it was captured), the image was blurry and unusable, judged invalid and excluded from statistics, re-captured.
+Second attempt (close range, 3-5cm scale): clearly captured iris texture, pupil boundary, two IR reflection highlight points, confirming **index 1 = GC0308** (monochrome, close-range characteristics), index 0 = Integrated Camera (color, consistent with the earlier conclusion).
+
+### 7b.3 Measured FPS (same method as Stage 2: real frame count / elapsed time, not trusting CAP_PROP_FPS or the product's nominal spec)
+
+| Resolution | Measured FPS | Driver-reported FPS (CAP_PROP) |
 |---|---|---|
-| 640×480（默认） | **29.26** | 0.0（驱动未正确上报） |
+| 640×480 (default) | **29.26** | 0.0 (driver not reporting correctly) |
 | 320×240 | **30.75** | 0.0 |
 
-**如实报告**：商品页宣称"120帧高速"，实测仅约29-31FPS，相差约4倍。这类标称与实测的差距在国内电商低成本模组中并不罕见（标称可能是传感器芯片内部理论峰值，不代表USB输出到主机端经驱动后的真实可用帧率），与本项目"必须实测、不轻信任何标称/上报值"的方法论一致，对商品宣称同样适用这条原则。30FPS对连续注视追踪可用但会丢失部分快速扫视(saccade)细节，达不到"高速"水准。
+**Honest reporting**: the product listing claims "120fps high-speed," but measured is only about 29-31FPS, roughly a 4x gap. This kind of gap between nominal spec and measured reality isn't uncommon for low-cost modules bought domestically (the nominal number may be the sensor chip's internal theoretical peak, not the real usable frame rate delivered over USB to the host after the driver) — consistent with this project's "always measure, never trust any nominal/reported value" methodology, which applies equally to product claims. 30FPS is usable for continuous gaze tracking but will miss some fast-saccade detail, falling short of "high-speed" standards.
 
-### 7b.4 瞳孔检测——三轮独立尝试，逐步定位真实瓶颈
+### 7b.4 Pupil detection — three independent rounds, progressively narrowing down the real bottleneck
 
-**第一轮：全画面检测**
-不使用Haar cascade（该模组近距离工作时眼睛已占满画面，不需要先定位ROI）。采集73张样本，全部失败（0/73, 0%）。
+**Round 1: full-frame detection**
+Not using a Haar cascade (when this module works at close range, the eye already fills the frame, no need to localize an ROI first). Collected 73 samples, all failed (0/73, 0%).
 
-![[Pasted image 20261009122415.png]]
+![Full-frame detection failure](images_vault_root/Pasted%20image%2020261009122415.png)
 
+Visual review of the raw images found: **the pupil/iris itself has good clarity**, but large patches of sensor granular noise (a salt-grain-like texture) appear on the nose bridge and under-eye skin area, often with an area larger than the pupil itself, getting pulled into the contour-detection candidates and interfering with the circularity ranking — a failure mode of a completely different nature than OV9281's (inherent sensor noise, rather than insufficient lighting/contrast).
 
-视觉核查原始图片发现：**瞳孔/虹膜本身清晰度良好**，但鼻梁、眼下皮肤区域出现大片传感器颗粒噪点（类似盐粒状纹理），面积经常超过瞳孔本身，被轮廓检测算法纳入候选并干扰圆度排序——这是一种与OV9281完全不同性质的失败模式（传感器固有噪声，而非光照/对比度不足）。
+**Round 2: manually cropping the ROI to exclude the noise region**
+Wrote `gc0308_pupil_test_cropped.py`, letting the user manually box a crop region with `cv2.selectROI()` once at the start of capture, tightly around the eye and excluding the nose-bridge noise area (since this module is used at a fixed close range, in theory one crop should remain valid for subsequent frames).
 
-**第二轮：手动裁剪ROI排除噪点区**
-写入 `gc0308_pupil_test_cropped.py`，让用户在采集开始时用 `cv2.selectROI()` 手动框选一次紧贴眼睛、排除鼻梁噪点区的裁剪范围（该模组近距离固定使用，理论上一次裁剪对后续帧仍有效）。
-![[Pasted image 20261009122501.png]]
+![Manual ROI cropping](images_vault_root/Pasted%20image%2020261009122501.png)
 
-结果：61张样本，程序原始输出2张"成功"（confidence 0.767/0.756），但圆度分布整体从第一轮的0.06-0.13跃升至0.4-0.6区间——**裁剪本身确有效果，大幅缓解了噪点干扰**。
+Result: 61 samples, the program's raw output was 2 "successes" (confidence 0.767/0.756), but the circularity distribution jumped overall from Round 1's 0.06-0.13 range up to the 0.4-0.6 range — **the cropping itself clearly helped, substantially mitigating the noise interference**.
 
-视觉核查2张"成功"样本：**两例仍为误报**，轮廓被残留噪点/阴影带偏，红点中心偏离真实瞳孔。另发现部分样本因模组手持时的轻微晃动导致固定裁剪框偏出眼睛范围（如一张圆度达0.69但画面中完全没有眼睛），这类样本同样不构成公平测试，但由于裁剪框动态失效难以像OV9281那样靠固定规则批量标记，此轮未做类似"公平帧/不公平帧"的正式人工分类，仅作定性记录。
+Visual review of the 2 "successful" samples: **both were still false positives**, with the contour pulled off by residual noise/shadow, the red center point off from the true pupil. Also found that some samples, due to slight shake while hand-holding the module, had the fixed crop box drift out of the eye's range (e.g. one sample reached circularity 0.69 but the frame contained no eye at all) — these samples likewise don't constitute a fair test, but since a dynamically drifting crop box is harder to flag with a fixed rule than OV9281's case, this round skipped the formal "fair/unfair frame" classification, recording this only qualitatively.
 
-**第三轮：裁剪+中值滤波降噪**
-在裁剪后的图像上，于高斯模糊前插入一道中值滤波（`cv2.medianBlur`，核大小5），专门针对颗粒状脉冲噪声设计（相比更大的高斯核，中值滤波更不容易抹糊真实边缘）。为保证 OV9281 的已发表数字不被追溯性改动，写入独立的 `pupil_detector_denoised.py`，不修改共享的 `pupil_detector_base.py`。
-![[Pasted image 20261009122231.png]]
-![[Pasted image 20261009122258.png]]
-![[Pasted image 20261009122315.png]]
-离线复用第二轮已采集的61张图像重新检测（未要求用户重新举模组采集，减少不必要的测试负担）：
-![[Pasted image 20261009122558.png]]
+**Round 3: cropping + median-filter denoising**
+On the cropped images, inserted a median filter (`cv2.medianBlur`, kernel size 5) before the Gaussian blur — specifically designed for granular impulse noise (compared to a larger Gaussian kernel, a median filter is less likely to smear out real edges). To keep OV9281's already-published numbers from being retroactively altered, this was written into an independent `pupil_detector_denoised.py`, without modifying the shared `pupil_detector_base.py`.
+
+![Median filter test 1](images_vault_root/Pasted%20image%2020261009122231.png)
+![Median filter test 2](images_vault_root/Pasted%20image%2020261009122258.png)
+![Median filter test 3](images_vault_root/Pasted%20image%2020261009122315.png)
+
+Re-ran detection offline on the 61 images already collected in Round 2 (no need to ask the user to hold the module up and re-capture, reducing unnecessary testing burden):
+
+![Denoised detection result](images_vault_root/Pasted%20image%2020261009122558.png)
 
 ```
 Total: 62, Success (raw): 2 (3.2%)
 ```
 
-视觉核查：**仍是同样两张误报**，中值滤波对已存在的误判轮廓没有修正效果，仅让部分"差一点"样本的圆度小幅上移（如0.68→0.69），没有任何样本真正跨过0.75阈值。
+Visual review: **still the exact same 2 false positives**, the median filter had no corrective effect on the already-misjudged contours, only nudging a few "close but not quite" samples' circularity slightly upward (e.g. 0.68→0.69), with no sample actually crossing the 0.75 threshold.
 
-### 7b.5 结论
+### 7b.5 Conclusion
 
-| 轮次 | 方法 | 真实成功率（视觉核查后） | 圆度分布 |
+| Round | Method | True success rate (after visual review) | Circularity distribution |
 |---|---|---|---|
-| 1 | 全画面 | 0/73 (0%) | 0.06-0.13（低，鼻梁噪点主导候选） |
-| 2 | 手动裁剪ROI | 0/61 (0%)，2例程序"成功"均为误报 | 0.4-0.6（明显改善但不足） |
-| 3 | 裁剪+中值滤波 | 0/61 (0%)，同2例误报未被修正 | 0.4-0.6（小幅上移，未跨阈值） |
+| 1 | full frame | 0/73 (0%) | 0.06-0.13 (low, nose-bridge noise dominates the candidates) |
+| 2 | manual ROI cropping | 0/61 (0%), 2 program "successes" both false positives | 0.4-0.6 (clearly improved but not enough) |
+| 3 | cropping + median filter | 0/61 (0%), the same 2 false positives not corrected | 0.4-0.6 (minor upward shift, didn't cross the threshold) |
 
-**GC0308 模组在当前经典算法框架下真实瞳孔检测成功率为0%**，三轮独立尝试（定位瓶颈→裁剪缓解→降噪补强）均未能让任何样本通过视觉核查。根本瓶颈与OV9281不同：不是光照/对比度不足，而是该0.3MP低成本CMOS传感器本身存在明显颗粒噪声，叠加手持近距离使用难以保持裁剪框稳定对准。
+**Under the current classical-algorithm framework, GC0308's true pupil-detection success rate is 0%** — three independent attempts (localize the bottleneck → cropping to mitigate → denoising reinforcement) all failed to get any sample past visual review. The fundamental bottleneck differs from OV9281's: it's not insufficient lighting/contrast, but this 0.3MP low-cost CMOS sensor itself having noticeable granular noise, compounded by the difficulty of keeping the crop box steadily aligned while hand-holding the module at close range.
 
-**但不应被简单归为"更差"**：裁剪后圆度普遍达到0.4-0.6，高于OV9281多数失败样本（通常0.1-0.3），说明GC0308拍到的瞳孔**几何形状完整度本身优于OV9281**，瓶颈集中在噪声而非可见性，这是两条路线性质不同的失败，不宜用同一个"失败"标签一概而论。
+**But it shouldn't simply be labeled "worse"**: after cropping, circularity generally reached 0.4-0.6, higher than most of OV9281's failed samples (typically 0.1-0.3), indicating GC0308's captured pupil **geometric shape completeness is actually better than OV9281's**, with the bottleneck concentrated in noise rather than visibility — these are two failures of a different nature, and shouldn't be lumped under the same "failure" label.
 
-### 7b.6 搁置的测试：更换更强IR灯珠
-用户同时获得一颗额外的IR灯珠（850nm，1W，单点LED），计划测试外加光源能否通过提升信噪比改善GC0308的噪点问题。**经安全评估后暂停**：该灯珠功率集中在单点（不同于此前OV9281测试用的分布式补光灯板），且GC0308的近距离工作方式（3-5cm）会使辐照度相比此前OV9281测试（30cm+量级）大幅提高（按平方反比关系，距离缩小约10倍，辐照度可能提高约2个数量级）。在确认该灯珠的辐照度/安全使用距离参数之前，不在眼部组织上近距离测试,此项测试搁置，不纳入本阶段结论。
+### 7b.6 Shelved test: swapping in a stronger IR LED
+The user also obtained an additional IR LED bead (850nm, 1W, single-point LED), planning to test whether adding external illumination could improve GC0308's noise problem by boosting the signal-to-noise ratio. **Paused after a safety assessment**: this LED bead's power is concentrated at a single point (unlike the distributed fill-light panel used in the earlier OV9281 test), and GC0308's close-range working distance (3-5cm) would substantially raise the irradiance compared to the earlier OV9281 test (30cm+ scale) — by the inverse-square relationship, a roughly 10x reduction in distance could raise irradiance by roughly 2 orders of magnitude. Without first confirming this LED bead's irradiance/safe-use-distance parameters, we will not test it near-field on eye tissue — this test is shelved, not included in this stage's conclusions.
 
 ---
 
-## 7c. 第七～九阶段正式运行（10/9，切回OV9281路线）
+## 7c. Stage 7–9 Formal Run (10/9, Back to the OV9281 Route)
 
-GC0308平行路线测试结束后，切回主线 OV9281 + 外挂850nm IR补光灯，正式运行此前搭建的第七～十阶段框架代码。
+After the GC0308 parallel route test concluded, switched back to the main line — OV9281 + external 850nm IR fill light — and formally ran the Stage 7–10 framework code built earlier.
 
-### 7c.1 设备重核实
-插拔不同模组会导致 camera index 重新分配（已在第六c、六d阶段两次验证过），因此切回OV9281前不假设任何旧值，重新运行 `identify_camera.py`：本次确认 **index 0 = OV9281**（单色、明显广角畸变），index 1 = Integrated Camera（彩色）。恰好与代码里已有的 `CAMERA_INDEX = 0` 一致，但这是**重新验证后的一致**，不是凭旧结论跳过验证。
-![[Pasted image 20261009122732.png]]
-### 7c.2 第七+八阶段：实时可视化 + 数据记录
+### 7c.1 Device re-verification
+Plugging/unplugging different modules causes the camera index to be re-assigned (already verified twice in Stages 6c and 6d), so before switching back to OV9281, no old value is assumed — `identify_camera.py` is re-run: this time confirming **index 0 = OV9281** (monochrome, clear wide-angle distortion), index 1 = Integrated Camera (color). This happens to match the `CAMERA_INDEX = 0` already in the code, but this is **a consistency re-confirmed after re-verification**, not skipping verification based on an old conclusion.
 
-**第一次运行**：会话时长 247.98秒（约4分钟），明显超出此前建议的20-30秒安全时长（操作失误，非设计意图）。结果：
+![Device re-identification](images_vault_root/Pasted%20image%2020261009122732.png)
+
+### 7c.2 Stages 7+8: Real-time Visualization + Data Logging
+
+**First run**: session duration 247.98 seconds (about 4 minutes), noticeably exceeding the previously recommended 20-30 second safe duration (an operational slip, not intentional). Result:
 
 ```
 Total frames: 13063
 Measured FPS: 52.68
-Pupil detect rate: 3.39%  (443/13063，全帧口径)
+Pupil detect rate: 3.39%  (443/13063, whole-frame basis)
 ```
 
-3.39%这个数字单独看，比第六c阶段的27.2%低了一个量级，但**不能直接拿来对比**——两者统计口径不同：27.2%的分母是"已确认找到眼睛ROI的公平帧"，而这里的3.39%分母是"全部原始帧"，包含了大量Haar cascade根本没找到眼睛的帧。原脚本把"ROI未找到"和"ROI找到但瞳孔检测失败"两种情况都记成同一个NaN，没法拆开。
+Taken alone, 3.39% is an order of magnitude lower than Stage 6c's 27.2%, but **it can't be directly compared** — the two use different statistical bases: 27.2%'s denominator is "frames that already had a confirmed eye ROI (fair frames)," while this 3.39% denominator is "all raw frames," including a large number of frames where the Haar cascade failed to find the eye at all. The original script lumped both "ROI not found" and "ROI found but pupil detection failed" into the same NaN, with no way to separate them.
 
-**修复**：在 `eye_tracking_realtime.py` 里给CSV加了 `roi_found` 字段，把统计拆成两级：
+**Fix**: added a `roi_found` field to the CSV in `eye_tracking_realtime.py`, splitting the statistics into two tiers:
 ```
-roi_hit_rate = roi_hits / total_frames              # 对照第五阶段15.5%
-pupil_given_roi_rate = pupil_hits / roi_hits         # 对照第六c阶段27.2%
+roi_hit_rate = roi_hits / total_frames              # compare against Stage 5's 15.5%
+pupil_given_roi_rate = pupil_hits / roi_hits         # compare against Stage 6c's 27.2%
 ```
 
-**第二次运行**（严格控制在20-30秒）：
+**Second run** (strictly kept to 20-30 seconds):
 
 ```
 Total frames: 5202
 Measured FPS: 55.92
-Eye-ROI hit rate: 15.17%        (对照第五阶段 15.5%)
-Pupil detect rate GIVEN ROI: 30.16%   (对照第六c阶段 27.2%)
+Eye-ROI hit rate: 15.17%        (compare against Stage 5's 15.5%)
+Pupil detect rate GIVEN ROI: 30.16%   (compare against Stage 6c's 27.2%)
 ```
 
-两个拆开后的指标都落在此前阶段验证过的区间内（误差在不同样本量下的正常波动范围），**证明第七/八阶段的实时采集→检测→记录链路是可信的**，此前的3.39%只是统计口径问题，不是IR失效或硬件倒退。
+Both split-out metrics fall within the ranges already validated in earlier stages (the differences are within normal sample-size fluctuation), **confirming the Stage 7/8 real-time capture→detect→record chain is trustworthy** — the earlier 3.39% was just a statistical-basis issue, not IR failure or hardware regression.
 
-对238个成功样本做confidence统计：均值0.853，与第六c阶段0.862接近，是一致的信号。但发现一个孤立离群值：某帧瞳孔椭圆尺寸为51.85×88.98像素，远超其余样本的11-22像素范围，提示实时模式下仍会偶发几何上不合理的误检测——由于该脚本未保存逐帧图片，这个离群值无法事后视觉核查，只能记录为"已知的未验证异常"，不纳入27.2%/30.16%这类已核查结论。
+Confidence statistics over 238 successful samples: mean 0.853, close to Stage 6c's 0.862 — a consistent signal. But one isolated outlier was found: one frame's detected pupil ellipse size was 51.85×88.98 pixels, far beyond the other samples' 11-22 pixel range, suggesting real-time mode can still occasionally produce a geometrically implausible false detection — since this script didn't save per-frame images, this outlier can't be visually reviewed after the fact, and can only be recorded as a "known, unverified anomaly," not included in the already-reviewed conclusions like 27.2%/30.16%.
 
-### 7c.3 第九阶段：5点相对注视实验 —— 暴露的方法论缺口
+### 7c.3 Stage 9: 5-Point Relative Gaze Experiment — Exposing a Methodological Gap
 
-运行 `gaze_experiment.py`（5方向×3秒，共约15秒/次），连续测试4次，结果：
+Ran `gaze_experiment.py` (5 directions × 3 seconds, about 15 seconds per run), tested 4 consecutive times, results:
 
-| 次数  | IR状态（用户回忆）                 | Eye-ROI命中率      | 瞳孔检测率(给定ROI)   | 全帧瞳孔检测率 |
-| --- | -------------------------- | --------------- | -------------- | ------- |
-| 1   | 回忆"没开"，但用户后续承认慌乱中记不准，不排除开着 | 23.2% (120/517) | 21.7% (26/120) | 5.0%    |
-| 2   | 不确定                        | 44.7% (168/376) | 0.0% (0/168)   | 0.0%    |
-| 3   | 不确定，用户主动反馈"无法确定摄像头是否对准眼睛"  | 81.4% (249/306) | 0.0% (0/249)   | 0.0%    |
-| 4   | 不确定                        | 53.8% (225/418) | 16.4% (37/225) | 8.9%    |
-![[Pasted image 20261009123730.png]]
-**两个真实暴露的问题，如实记录**：
+| Run | IR status (user recollection) | Eye-ROI hit rate | Pupil detect rate (given ROI) | Whole-frame pupil detect rate |
+| --- | --- | --- | --- | --- |
+| 1 | recalls "off," but later admitted being unsure amid the rush, can't rule out it was on | 23.2% (120/517) | 21.7% (26/120) | 5.0% |
+| 2 | unsure | 44.7% (168/376) | 0.0% (0/168) | 0.0% |
+| 3 | unsure, user proactively reported "couldn't tell if the camera was aimed at the eye" | 81.4% (249/306) | 0.0% (0/249) | 0.0% |
+| 4 | unsure | 53.8% (225/418) | 16.4% (37/225) | 8.9% |
 
-1. **缺乏过程可视化**：原脚本只显示黑屏+目标红点，用户在实验过程中无法确认摄像头是否对准眼睛（第3次运行后用户主动反馈）。修复：加入实时"Eye ROI"预览窗口（复用第七阶段同款机制），同时给CSV加 `roi_found` 字段与第七阶段口径对齐。此修复已验证可写入（非安全拦截阻塞的那个版本）。
+![Gaze experiment results](images_vault_root/Pasted%20image%2020261009123730.png)
 
-2. **IR光照状态不可控、不可追溯**：IR灯是手持调整，不是固定安装，每次测试内部及测试之间的光照条件都在变化，且用户事后无法可靠回忆每次测试时灯的开关状态。这导致**四次结果之间的巨大波动（ROI命中率23%~81%，瞳孔检测率0%~21.7%）无法归因**——不知道是光照变化导致，还是头部/摄像头相对位置变化导致，两个变量混杂在一起。
+**Two genuine problems exposed, recorded honestly**:
 
-   第1次21.7%的瞳孔检测率起初被怀疑与第六阶段"无IR条件下0%基线"矛盾，但经核实，"该次没开IR"本身并非确定事实（用户明确表示记不清），**这个矛盾不成立，不应被当作异常上报**——这是本报告的一次自我纠正：最初的怀疑是建立在一个不可靠前提上的。
+1. **Lack of process visualization**: the original script only showed a black screen + the target red dot; during the experiment the user had no way to confirm whether the camera was actually aimed at the eye (the user proactively flagged this after the 3rd run). Fix: added a real-time "Eye ROI" preview window (reusing the same mechanism from Stage 7), and added a `roi_found` field to the CSV to match Stage 7's basis. This fix has been verified writable (not the version that got blocked by a safety mechanism).
 
-3. **尝试修复但未完成**：计划进一步在 `gaze_experiment.py` 中加入"每次成功检测都保存标注图片供事后核查"的功能（与第六/六c阶段的审计方法一致），避免任何成功率数字在未经视觉核查前被引用。此修改在编写时被工具侧的自动安全机制拦截（与本次对话中其他几次文件写入拦截同源，判定为会话级别的误判，不是对此次改动内容的实质性否定），在排除两种规避方式（切换权限模式、等待自动恢复）后仍未成功写入。
+2. **IR illumination state uncontrolled and untraceable**: the IR light was adjusted by hand, not a fixed install, so the lighting condition varied both within and between test runs, and the user afterward couldn't reliably recall each run's light on/off state. This means **the large variation across the four runs (ROI hit rate 23%~81%, pupil detect rate 0%~21.7%) cannot be attributed** — we don't know whether it's lighting changes or head/camera relative-position changes, the two variables are confounded.
 
-**结论：第九阶段的四次测试结果不具备可比性，不能用于任何关于"IR是否有效""相对注视是否可行"的结论，只能如实记录为"存在但方法论上不可靠的数据"。** 第九阶段需要在以下条件满足后重新进行，才能产出可信结论：
-- IR光源固定安装（不手持调整），做到光照条件至少在单次测试内恒定、且可记录/可复现
-- 脚本能保存成功帧图片供事后视觉核查（第六/六c/七阶段都已验证这一步不可省略）
-- 实时ROI预览窗口（已修复并验证可写入，下次运行可用）
+   Run 1's 21.7% pupil detect rate was initially suspected to contradict Stage 6's "0% baseline under no-IR conditions," but on verification, "this run had no IR" itself is not a confirmed fact (the user explicitly said they couldn't remember) — **this contradiction doesn't hold and shouldn't have been flagged as an anomaly** — this is a self-correction within this report: the initial suspicion was built on an unreliable premise.
+
+3. **Attempted a fix but didn't complete it**: planned to further add "save an annotated image for every successful detection" to `gaze_experiment.py` (consistent with the auditing method in Stages 6/6c), to avoid citing any success-rate number before visual review. This change was blocked by the tool-side automatic safety mechanism while being written (the same root cause as several other file-write blocks in this conversation, judged a session-level misclassification, not a substantive rejection of this specific change's content) — after ruling out two workarounds (switching permission mode, waiting for automatic recovery), it still couldn't be written.
+
+**Conclusion: the four test results from Stage 9 are not comparable to each other, and cannot be used to support any conclusion about "whether IR is effective" or "whether relative gaze is feasible" — they can only be honestly recorded as "data that exists but is methodologically unreliable."** Stage 9 needs to be redone under the following conditions before a trustworthy conclusion can be produced:
+- the IR light source fixed-mounted (not hand-adjusted), so the lighting condition is at least constant within a single test and reproducible/recordable
+- the script able to save successful frames' images for after-the-fact visual review (already verified as a non-skippable step in Stages 6/6c/7)
+- the real-time ROI preview window (already fixed and verified writable, usable on the next run)
 
 ---
 
-## 7d. 第七d阶段：无IR纯算法方向探索（并行分支，补充于2026-10-16～17，原记录于261010路线图第六节，现迁移至本报告归档）
+## 7d. Stage 7d: No-IR Pure-Algorithm Direction Exploration (Parallel Branch, Supplemented 2026-10-16~17, Originally Recorded in the 261010 Roadmap Section 6, Migrated to This Report for Archiving)
 
-> 迁移说明：以下内容最初记录在`261010/眼镜式双摄融合眼动仪路线图.md`第六节，但其内容本质是真实的实验过程记录（跑了什么代码、测出什么数字、人工复核发现了什么），按本报告"完整、可追溯的技术验证脉络"的定位，属于实验报告范畴，而非硬件选型/路线规划文档。现整体迁移到此处，261010路线图中对应章节已移除，仅保留指向本节的引用。
+> Migration note: the following content was originally recorded in `261010/dual-camera-glasses-roadmap.md` Section 6, but its content is in substance a real experimental process record (what code was run, what numbers came out, what a manual review found) — per this report's "complete, traceable technical validation trail" framing, it belongs in the experiment-report category, not the hardware-selection/roadmap-planning category. It has now been fully migrated here, and the corresponding section in the 261010 roadmap has been removed, keeping only a pointer to this section.
 
-### 7d.1 背景
+### 7d.1 Background
 
-用户在社交平台看到"无IR眼动追踪，纯算法方式"的分享，希望验证是否能摆脱IR依赖。已知基线数据（本报告第六/六c阶段）：无IR+Otsu阈值法成功率0/20；加850nm IR补光后同一套算法成功率27.2%（22/81公平帧）。GC0308专用模组平行测试瓶颈是传感器颗粒噪声，同样0%，与光照无关。
+The user saw a social-media post about "no-IR eye tracking, pure algorithmic approach" and wanted to validate whether IR dependence could be eliminated. Known baseline data (Sections 6/6c of this report): no-IR + Otsu threshold method success rate 0/20; adding 850nm IR fill light, the same algorithm's success rate 22/81 (27.2%, fair frames). The GC0308 dedicated-module parallel test's bottleneck was sensor granular noise (three rounds all 0%), unrelated to lighting.
 
-无IR方向分两条子路线，机制、成本和验证方式完全不同，不要混为一谈：
+The no-IR direction splits into two sub-routes with completely different mechanisms, costs, and validation methods — not to be conflated:
 
-### 7d.2 方案A：换用对低对比度/噪声更鲁棒的经典算法 【已验证，结论：方向性成立但不足以替代IR】
+### 7d.2 Approach A: Switch to a Classical Algorithm More Robust to Low Contrast/Noise 【Validated, Conclusion: Directionally Sound But Not Sufficient to Replace IR】
 
-- **思路**：不换硬件，只换检测算法。实现了星射线法（starburst）：从粗略暗区重心出发，沿36个方向发射射线，逐条寻找局部灰度梯度跳变点作为瞳孔边界，再对所有边界点拟合椭圆。不依赖单一全局阈值，理论上比Otsu阈值法对光照不均更鲁棒
-- **数据复用**：未重新采集，直接复用第六阶段无IR原始样本（`261004/data/eye`，20帧，`pupil_detection.csv`已确认该批次Otsu法为0/20），新旧算法在同一批样本上对比
-- **实现文件**：`261004/pupil_detector_starburst.py`（检测器，接口与`pupil_detector.py`的`detect_pupil()`完全一致），`261004/compare_algorithms.py`（跑两个算法并生成对比CSV+可视化contact sheet）
-- **踩坑记录**：OpenCV的`cv2.imread`/`cv2.imwrite`在含中文字符的Windows路径下（本项目路径`作品集/课程`）会静默失败，返回None而不报错。修复方式是用`np.fromfile`+`cv2.imdecode`读、`cv2.imencode`+`tofile`写，绕开OpenCV自带的路径编码处理。后续任何在本项目路径下新写的脚本涉及图像读写都要用这个模式，不能直接用`cv2.imread`/`imwrite`
-- **程序报告结果 vs 人工复核结果**（关键：两者差异很大，不能只看程序输出的success标志）：
+- **Idea**: don't change the hardware, just change the detection algorithm. Implemented the starburst method: starting from a rough dark-region centroid, cast rays in 36 directions, looking along each for a local grayscale-gradient jump point as a pupil-boundary point, then fit an ellipse to all the boundary points. Doesn't depend on a single global threshold, in theory more robust to uneven lighting than the Otsu threshold method
+- **Data reuse**: no new capture — directly reused Stage 6's no-IR raw samples (`261004/data/eye`, 20 frames, `pupil_detection.csv` already confirmed this batch's Otsu-method result was 0/20), comparing the new and old algorithms on the exact same batch of samples
+- **Implementation files**: `261004/pupil_detector_starburst.py` (the detector, with an interface identical to `pupil_detector.py`'s `detect_pupil()`), `261004/compare_algorithms.py` (runs both algorithms and generates a comparison CSV + visualized contact sheet)
+- **Pitfall log**: OpenCV's `cv2.imread`/`cv2.imwrite` silently fail under a Windows path containing non-ASCII characters (this project's path `作品集/课程`), returning None instead of raising an error. The fix was to read with `np.fromfile`+`cv2.imdecode` and write with `cv2.imencode`+`tofile`, bypassing OpenCV's own path-encoding handling. Any script newly written under this project path involving image I/O must use this pattern going forward, not `cv2.imread`/`imwrite` directly
+- **Program-reported result vs. manually-reviewed result** (key: the two differ substantially — the program's success flag alone cannot be trusted):
 
-  | 方法 | IR条件 | 程序报告成功率 | 人工复核后可信成功率 |
+  | Method | IR condition | Program-reported success rate | Trustworthy success rate after manual review |
   |---|---|---|---|
-  | Otsu阈值法（现有） | 无IR | 0/20 (0%) | 0/20 (0%) |
-  | 星射线法（新） | 无IR | 6/20 (30%) | **约2/20 (10%)** |
-  | Otsu阈值法（现有） | 有850nm IR | 27.2% (22/81) | 未独立复核，沿用第六阶段数值 |
+  | Otsu threshold method (existing) | no IR | 0/20 (0%) | 0/20 (0%) |
+  | Starburst method (new) | no IR | 6/20 (30%) | **about 2/20 (10%)** |
+  | Otsu threshold method (existing) | with 850nm IR | 27.2% (22/81) | not independently reviewed, retains Stage 6c's figure |
 
-- **人工复核发现**：6个程序判定"success"的样本中，逐帧目视contact sheet（`data/results/algorithm_comparison_contact_sheet.png`）后，4个是误判——椭圆被高光点或眼睑边缘的梯度跳变带偏，圈住的是虹膜/眼睑阴影区域而非瞳孔本体，这与第六阶段报告记录的"circularity过滤不足以排除假阳性"是同一类错误。只有2个（687750、698797，均为裁切更紧的特写帧）椭圆大致罩住瞳孔主体，勉强可信
-- **结论**：星射线法相对Otsu阈值法有改善（0%→约10%），方向性成立——去掉对单一全局阈值的依赖确实能在局部对比度足够的地方抓住边界。但改善幅度远低于27.2%的IR基线，**"算法升级可以替代IR补光"这个假设在当前数据上不成立**。根本限制是东亚人深色虹膜与瞳孔的灰度梯度跳变本身就弱，这是光学/生理层面的对比度问题，换检测算法绕不开，只能靠硬件（IR照明+窄带滤光）从物理上拉开对比度。IR补光作为主线方案的必要性由此被进一步坐实
+- **Manual review findings**: among the 6 samples the program judged "success," after reviewing the contact sheet (`data/results/algorithm_comparison_contact_sheet.png`) frame by frame, 4 were misjudgments — the ellipse was pulled off by a highlight point or an eyelid-edge gradient jump, circling the iris/eyelid-shadow region rather than the actual pupil — the same class of error recorded in Stage 6 as "circularity filtering insufficient to exclude false positives." Only 2 (687750, 698797, both tighter close-up crops) had the ellipse roughly covering the pupil body, barely trustworthy
+- **Conclusion**: the starburst method shows an improvement over the Otsu threshold method (0%→about 10%), the direction is sound — removing the dependence on a single global threshold does help catch the boundary where local contrast is sufficient. But the improvement magnitude is far below the 27.2% IR baseline, **the hypothesis "algorithm upgrade can replace IR fill light" does not hold on current data**. The fundamental limitation is that the grayscale-gradient jump between a dark East Asian iris and the pupil is itself weak — an optical/physiological-level contrast problem that no detection algorithm can route around; only hardware (IR illumination + narrow-band filtering) can physically widen that contrast. This further cements the necessity of IR fill light as the main-line plan
 
-### 7d.3 方案B：外观回归式注视估计（深度学习，不做瞳孔轮廓分割）【初步验证，结论：路线可行但需架构调整，尚不构成IR替代证据】
+### 7d.3 Approach B: Appearance-Regression Gaze Estimation (Deep Learning, No Pupil-Contour Segmentation) 【Preliminarily Validated, Conclusion: Route Is Viable But Needs Architecture Adjustment, Does Not Yet Constitute IR-Replacement Evidence】
 
-- **思路**：不分割瞳孔几何边界，直接用CNN等模型从整个眼部区域图像回归出注视方向/屏幕坐标，这类方法设计目标本就是可见光、不受控光照场景，业界有无IR落地先例
-- **原始分享内容仍未确认**：用户看到的具体项目/论文链接尚未提供，以下测试用的是**同类思路的现成实现**（MediaPipe FaceLandmarker 的 iris landmark 模块，基于外观回归而非几何分割估计虹膜中心），作为该路线是否可行的先导验证，不代表已找到并复现用户看到的那个具体分享
-- **备选方案调研**：
-  - MediaPipe Face Mesh(含Iris landmarks)——Google维护,468个人脸关键点+专门的虹膜关键点,明确是RGB摄像头、无需IR/深度传感器设计的,文档里写了能做"小于10%相对误差"的虹膜距离估计。成熟、有Python/JS/移动端SDK、免费、不需要训练。这是成本最低、能"今晚就测"的选项——不需要重新训练,直接拿现有无IR样本跑一遍landmark提取,把虹膜关键点的中心算出来对比瞳孔真实位置就有结果了。(GitHub: https://github.com/google-ai-edge/mediapipe/blob/master/docs/solutions/iris.md, Google Research: https://research.google/blog/mediapipe-iris-real-time-iris-tracking-depth-estimation/)
-  - DeepVOG——专门做瞳孔分割(不是关键点,是真正的分割mask)+注视估计,FCNN架构,文档说是针对可见光图像设计,报告的瞳孔中心精度中位数约1像素。如果需要的是跟现有`pupil_cx/pupil_cy`一样的精确瞳孔中心(不是粗略的虹膜关键点),这个比MediaPipe更贴近现有pipeline的需求,但需要确认它实际训练数据是不是真的覆盖深色虹膜场景。(ResearchGate: https://www.researchgate.net/publication/334131613_DeepVOG_Open-source_pupil_segmentation_and_gaze_estimation_in_neuroscience_using_deep_learning, PubMed: https://pubmed.ncbi.nlm.nih.gov/31176683/)
-  - 次要候选，优先级更低：PuPal-Beta（可见光webcam瞳孔提取，维护活跃度和社区规模不如前两个，"Beta"写在名字里，风险自行判断，GitHub: https://github.com/pupal-deep-learning/PuPal-Beta）；jeelizPupillometry（JS/WebGL浏览器端，现有pipeline是Python，接入成本高，除非打算单独做网页端，GitHub: https://github.com/jeeliz/jeelizPupillometry）；GazeML（TensorFlow 1.x时代框架，年久失修，现代环境装起来大概率要花时间处理依赖版本问题，不建议作为第一选择，GitHub: https://github.com/swook/GazeML）
-- **数据问题（关键前提）**：现有`261004/data/eye`是`eye_roi.py`在相机端用Haar cascade实时裁剪后只保存的眼部局部图，原始全脸帧从未落盘。MediaPipe FaceLandmarker的人脸检测前置步骤依赖完整脸部（双眼、鼻、嘴的相对位置），喂眼部裁剪图会在第一步检测失败，不能复用方案A的样本。为此新采集了19帧全脸、无IR、正常室内光照帧（`261004/data/face_full`，`capture_full_face.py`）
-- **实现文件**：`261004/test_mediapipe_iris.py`（`vision.FaceLandmarker`，模型`face_landmarker.task`，取478点细化面网格中索引468/473的虹膜中心点）
-- **踩坑记录**：MediaPipe Tasks API的`model_asset_path`参数在含中文字符的Windows路径下同样会原生加载失败（报`FileNotFoundError`，与方案A的OpenCV路径坑是不同底层库但同一类问题）。修复方式是改用`model_asset_buffer`，在Python层用`open(path,"rb")`读字节后直传，不让MediaPipe自己解析路径字符串
-- **MediaPipe程序报告结果 vs 人工复核结果**：
+- **Idea**: instead of segmenting the pupil's geometric boundary, use a CNN or similar model to regress gaze direction/screen coordinates directly from the whole eye-region image — this class of method is designed from the outset for visible-light, uncontrolled-lighting scenarios, with existing industry examples of no-IR deployment
+- **The original shared post is still unconfirmed**: the user hasn't yet provided the specific project/paper link they saw; the test below uses **an off-the-shelf implementation of the same idea** (MediaPipe's FaceLandmarker iris-landmark module, which estimates the iris center via appearance regression rather than geometric segmentation), as a pilot validation of whether this route is feasible — it does not represent having found and reproduced the specific post the user saw
+- **Alternative candidates surveyed**:
+  - MediaPipe Face Mesh (with Iris landmarks) — maintained by Google, 468 facial landmarks + dedicated iris landmarks, explicitly designed for RGB cameras with no IR/depth sensor needed, documentation states it can do iris-distance estimation with "under 10% relative error." Mature, with Python/JS/mobile SDKs, free, no training needed. This is the lowest-cost option, testable "tonight" — no retraining needed, directly run landmark extraction on the existing no-IR samples and compare the iris landmark's computed center against the true pupil position for an immediate result. (GitHub: https://github.com/google-ai-edge/mediapipe/blob/master/docs/solutions/iris.md, Google Research: https://research.google/blog/mediapipe-iris-real-time-iris-tracking-depth-estimation/)
+  - DeepVOG — purpose-built for pupil segmentation (not landmarks, a true segmentation mask) + gaze estimation, an FCNN architecture, documentation states it's designed for visible-light images, reporting a median pupil-center accuracy of about 1 pixel. If what's needed is a precise pupil center matching the existing `pupil_cx/pupil_cy` output (not a rough iris landmark), this is closer to the existing pipeline's need than MediaPipe, but needs confirming whether its actual training data genuinely covers dark-iris scenarios. (ResearchGate: https://www.researchgate.net/publication/334131613_DeepVOG_Open-source_pupil_segmentation_and_gaze_estimation_in_neuroscience_using_deep_learning, PubMed: https://pubmed.ncbi.nlm.nih.gov/31176683/)
+  - Lower-priority secondary candidates: PuPal-Beta (visible-light webcam pupil extraction, less actively maintained and smaller community than the above two, "Beta" is in the name, risk is on the user to judge, GitHub: https://github.com/pupal-deep-learning/PuPal-Beta); jeelizPupillometry (JS/WebGL browser-side, the existing pipeline is Python, high integration cost unless building a dedicated web frontend, GitHub: https://github.com/jeeliz/jeelizPupillometry); GazeML (a TensorFlow 1.x-era framework, long unmaintained, likely to hit dependency version issues setting it up in a modern environment, not recommended as a first choice, GitHub: https://github.com/swook/GazeML)
+- **Data problem (a key precondition)**: the existing `261004/data/eye` was saved by `eye_roi.py` as Haar-cascade-cropped eye regions only on the camera side — the original full-face frames were never saved to disk. MediaPipe FaceLandmarker's face-detection preprocessing step depends on a complete face (relative positions of both eyes, nose, mouth) — feeding it an eye crop fails at the very first step, so Approach A's samples can't be reused. New capture was done instead: 19 frames of full-face, no-IR, normal indoor lighting (`261004/data/face_full`, `capture_full_face.py`)
+- **Implementation file**: `261004/test_mediapipe_iris.py` (`vision.FaceLandmarker`, model `face_landmarker.task`, taking indices 468/473 from the 478-point refined face mesh as the iris-center points)
+- **Pitfall log**: MediaPipe Tasks API's `model_asset_path` parameter likewise fails to load natively under a Windows path containing non-ASCII characters (throwing `FileNotFoundError` — a different underlying library than OpenCV's path pitfall, but the same class of problem). The fix was to switch to `model_asset_buffer`, reading the bytes at the Python layer with `open(path,"rb")` and passing them directly, rather than letting MediaPipe parse the path string itself
+- **MediaPipe program-reported result vs. manually-reviewed result**:
 
-  | 方法 | 条件 | 样本 | 程序报告检出率 | 人工复核 |
+  | Method | Condition | Samples | Program-reported detection rate | Manual review |
   |---|---|---|---|---|
-  | MediaPipe FaceLandmarker iris | 无IR，全脸，正视角度 | 19帧 | 11/19 (57.9%) | **可信，11/11均准确** |
-  | MediaPipe FaceLandmarker iris | 无IR，全脸，6方向（中/左/右/上/下，含重复中心） | 60帧 | **60/60 (100%)** | 未逐帧人工复核（见下方说明） |
+  | MediaPipe FaceLandmarker iris | no IR, full face, frontal gaze | 19 frames | 11/19 (57.9%) | **trustworthy, 11/11 all accurate** |
+  | MediaPipe FaceLandmarker iris | no IR, full face, 6 directions (center/left/right/up/down, including a repeated center) | 60 frames | **60/60 (100%)** | not reviewed frame by frame (see note below) |
 
-- **人工复核发现**：与方案A不同，这次程序报告的11个"face_detected=True"样本逐张检查contact sheet后全部可信——虹膜中心绿点准确落在瞳孔上，包括视线下垂、眼皮明显半闭的帧，没有观察到类似星射线法"圈住虹膜阴影而非瞳孔"的系统性偏移。8个"no face"的失败样本集中在眼睛更接近闭合/视线角度更大的帧，失败模式是"诚实拒绝"（不产出landmark）而非"误报"
-- **第二轮验证（多方向，60帧）**：为检验检出率是否只是19帧小样本、单一正视角度下的偶然结果，新采集60帧覆盖6个方向段（`capture_full_face_multidir.py` → `261004/data/face_full_multidir`）：center 20帧（含首尾重复校验）、left/right/up/down各10帧，用户在采集时主动转头/转眼看向对应方向。跑同一套`test_mediapipe_iris_multidir.py`（对`test_mediapipe_iris.py`的直接复用，仅新增按文件名前缀分组统计），结果60/60全部检出，5个方向分组（center/down/left/right/up）每组都是100%。这次没有逐帧人工复核（19帧那轮已确认过"检出=准确"不会误报，这里只看检出率本身），只用contact sheet目视扫过，虹膜绿点位置随方向平滑变化，无跳变或锁死在错误位置的迹象
-- **结论与限制**：
-  1. 精度层面：一旦检测成功，MediaPipe的虹膜定位在无IR条件下是可靠的，这验证了"外观回归式方法在可见光场景下可行"这一前提
-  2. 检出率不能直接与方案A表格里的27.2% IR基线比较——测试条件不同（27.2%是第六阶段同一受控流程下的统计，带像素级ground truth；这里从未做过像素级比对，只是目视确认"看起来对"），且60帧这轮仍是用户主动摆位而非精确控制的注视点。要得到可比数字，需要同一受控采集流程（固定若干注视点、充分样本量、ground truth标注）下重跑
-  3. 新发现的数据纯净度问题：60帧的center批次内部，虹膜像素坐标本身有明显漂移（如x坐标从561降到507再回升到515），说明这批"center"帧头部位置并未严格固定，转头/转眼的动作混在一起。这意味着当前数据只能回答"检测稳不稳"，还不能回答"虹膜坐标→视线角度的映射准不准"——后者需要固定头部（下巴托/靠墙等物理约束），只转动眼球采集，才能让虹膜坐标变化干净地对应视线角度而不混入头部位移噪声
-  4. 架构层面是更关键的发现：这条路线要求上游彻底改变采集方式——必须先拍到完整脸部再定位虹膜，而不能像`eye_roi.py`那样在相机端直接裁剪保存眼部小图。这与主线方案（Pi Zero 2 W + 双摄）的硬件视场设计直接相关：如果双摄的视场本就是贴着眼部的近距特写（当前路线图默认假设），MediaPipe这类"先全脸"的方法在硬件层面可能根本拿不到所需输入，需要先确认主线摄像头的实际视场角和佩戴距离是否覆盖得到完整脸部
-- **待办**：①用户提供原始分享的具体链接/项目名，确认是否就是MediaPipe这类思路还是另有专用模型；②若继续这条路线，需要设计受控验证（固定头部+固定若干注视点+ground truth标注）才能产出可与27.2%比较、且能验证角度精度而非只验证检出率的数字；③确认主线硬件视场是否支持"全脸输入"这个前提，否则方案B在当前硬件设计下不成立
+- **Manual review findings**: unlike Approach A, this time all 11 "face_detected=True" samples reported by the program checked out on review — the iris-center green dot landed accurately on the pupil, including frames with a drooping gaze or noticeably half-closed eyelids, with no systematic offset of the kind seen in the starburst method "circling the iris shadow rather than the pupil." The 8 "no face" failed samples clustered in frames where the eye was closer to fully closed/at a larger viewing angle, a failure mode of "honestly declining" (not producing a landmark) rather than a false positive
+- **Second round of validation (multi-direction, 60 frames)**: to check whether the detection rate was just a coincidence of the small 19-frame sample and a single frontal-gaze angle, newly captured 60 frames covering 6 directional segments (`capture_full_face_multidir.py` → `261004/data/face_full_multidir`): center 20 frames (including a repeated first/last for cross-check), left/right/up/down 10 frames each, with the user actively turning their head/eyes toward the corresponding direction during capture. Ran the same `test_mediapipe_iris_multidir.py` (a direct reuse of `test_mediapipe_iris.py`, only adding grouped statistics by filename prefix), result: 60/60 all detected, each of the 5 directional groups (center/down/left/right/up) at 100%. This round wasn't reviewed frame by frame (the 19-frame round had already confirmed "detected = accurate" won't false-positive) — only scanned visually via the contact sheet, the iris green dot's position moved smoothly with direction, with no jumps or getting stuck at a wrong position
+- **Conclusions and limitations**:
+  1. On the precision front: once detection succeeds, MediaPipe's iris localization is reliable under no-IR conditions, validating the premise that "an appearance-regression method is viable in a visible-light scenario"
+  2. The detection rate cannot be directly compared to Approach A's table's 27.2% IR baseline — the test conditions differ (27.2% is a statistic from the same controlled pipeline in Stage 6, with pixel-level ground truth; here, no pixel-level comparison has ever been done, only a visual "looks right" confirmation), and this 60-frame round was still the user actively posing rather than precisely controlled gaze points. Getting a comparable number requires re-running under the same controlled capture pipeline (fixed gaze points, sufficient sample size, ground-truth labeling)
+  3. A newly discovered data-purity issue: within the 60-frame center batch, the iris pixel coordinates themselves show noticeable drift (e.g. x-coordinate dropping from 561 to 507 then back up to 515), indicating this batch's "center" frames weren't strictly head-fixed, with head-turning/eye-turning motions mixed together. This means the current data can only answer "is detection stable," it still cannot answer "is the iris-coordinate → gaze-angle mapping accurate" — the latter requires fixing the head (a chin rest/wall support, etc.) and only rotating the eyeball during capture, so that iris-coordinate changes cleanly correspond to gaze-angle changes without head-displacement noise mixed in
+  4. A more critical finding at the architectural level: this route requires fundamentally changing the upstream capture method — a full face must be captured first before the iris can be localized, rather than cropping and saving just the eye region at the camera side as `eye_roi.py` does. This directly relates to the main-line hardware design (Pi Zero 2 W + dual camera): if the dual camera's field of view is itself a close-up crop hugging the eye (the current default assumption of the roadmap), a method like MediaPipe that requires "full face first" might not be able to get its needed input at the hardware level at all — needs confirming whether the main-line camera's actual field of view and wearing distance covers the full face
+- **Open items**: ① the user to provide the original post's specific link/project name, to confirm whether it's this MediaPipe-type idea or a different dedicated model; ② if continuing this route, a controlled validation (fixed head + fixed set of gaze points + ground-truth labeling) needs to be designed, to produce a number comparable to 27.2% and that validates angular precision rather than just detection rate; ③ confirm whether the main-line hardware's field of view supports "full-face input" — otherwise Approach B doesn't hold under the current hardware design
 
-### 7d.4 与主线方案的关系
+### 7d.4 Relationship to the Main-Line Plan
 
-两条无IR探索路线不影响主线（Pi Zero 2 W一体化 + 850nm IR补光）的推进节奏，两边并行，互不阻塞。若后续任一方向证明无IR也能达到可用成功率（量级上接近或超过27.2%基线），再反过来评估是否从主计划的硬件清单中移除IR LED模块（见`261010`路线图第一节硬件清单"IR补光"项）。在此之前，主线仍按原计划采购IR LED、推进PCB与固件开发。
+Neither no-IR exploration path affects the pacing of the main plan (Pi Zero 2 W all-in-one + 850nm IR fill), the two run in parallel without blocking each other. If either direction eventually proves a usable success rate without IR (on the order of, or exceeding, the 27.2% baseline), we would then re-evaluate whether to remove the IR LED module from the main hardware list (see `261010` roadmap Section 1 hardware list's "IR fill light" item). Until then, the main plan continues as originally planned: purchase the IR LED, proceed with PCB and firmware development.
 
-需注意一个单向信息依赖（不是阻塞）：方案B若要继续推进，需要确认主线双摄的实际视场角和佩戴距离能否拍到完整脸部（见7d.3待办③）。这个问题的答案在主线硬件选型/PCB排布（见`261010`路线图第一、二节）定稿后才能确认，但反过来不成立——主线不需要等方案B的结论才能推进。
+Note one one-directional information dependency (not a blocking one): if Approach B is to continue, it needs confirmation of whether the main dual-camera's actual field of view and wearing distance can capture a full face (see Section 7d.3 open item ③). The answer to this question can only be confirmed once the main hardware selection/PCB layout (see `261010` roadmap Sections 1 and 2) is finalized — but it does not work the other way around — the main plan does not need to wait on Approach B's conclusion to proceed.
 
 ---
 
-## 7e. 第七e阶段：眼部特写方案的确认 + 无IR深度学习候选方案全盘排查（2026-10-22～23）
+## 7e. Stage 7e: Confirming the Close-up-Eye-Crop Approach + A Full Sweep of No-IR Deep-Learning Candidates (2026-10-22~23)
 
-### 7e.1 背景：从"必须全脸"回到"眼部特写也可行"的设计转向
+### 7e.1 Background: From "Must See the Full Face" Back to "A Close-up Eye Crop Also Works" — a Design Pivot
 
-7d.3节确认了MediaPipe路线（无IR虹膜检测）需要先拍到完整脸部，这一度被当作"摄像头要离脸8-10cm"这个硬件形态约束的来源（见261017会议纪要，老师也认同了这个数字）。用户据此设想了两种硬件方案：方案1帽檐固定摄像头、方案2翻折式两用眼镜，但都存在"整体不平衡、不好看"的工业设计问题。
+Section 7d.3 confirmed the MediaPipe route (no-IR iris detection) needs a full face captured first — this was at one point taken as the source of a hardware-form constraint of "the camera needs to be 8-10cm from the face" (see the 261017 meeting notes, where the teacher also agreed with this number). Based on this, the user had conceived two hardware approaches: Approach 1, a brim-mounted camera, and Approach 2, a fold-flip dual-purpose glasses — but both had an industrial-design problem of "overall imbalance, doesn't look good."
 
-针对"计算机训练人眼读取是否一定要照到整个脸"这一问题，本阶段给出明确回答：**不需要，这是MediaPipe FaceLandmarker这一个具体工具的架构限制（它内部先跑人脸检测器作为前置步骤），不是眼动追踪任务本身的普遍要求**。真正的商用头戴式眼动仪（如Pupil Labs）走的正是"摄像头刚性固定在眼镜上、只拍眼部特写、从不需要看到整张脸"的路线——因为摄像头与脸的相对位置在物理结构上就已经固定，不需要靠每一帧的人脸关键点重新建立参照系，这与7d.3节记录的"60帧center批次内部虹膜坐标漂移，因为头部位置未固定"那次漂移问题是**手持/外置测试引入的伪问题**，不是头戴式方案会遇到的问题。
+In response to the question "does a computer reading a human eye necessarily require seeing the whole face," this stage gives a clear answer: **no, this is an architectural limitation of this one specific tool, MediaPipe FaceLandmarker (it internally runs a face detector as a preprocessing step first), not a general requirement of the eye-tracking task itself**. Genuine commercial head-mounted eye trackers (e.g. Pupil Labs) take exactly the route of "the camera is rigidly fixed to the glasses, only shoots a close-up of the eye, never needs to see the whole face" — because the camera's position relative to the face is already physically fixed by the structure, there's no need to re-establish a reference frame from facial landmarks every single frame. This means the drift problem recorded in Section 7d.3 ("within the 60-frame center batch, the iris coordinates drift because the head position wasn't fixed") is a **false problem introduced by hand-held/external testing**, not a problem a head-mounted design would encounter.
 
-据此，用户提出新的硬件设想：OV9281固定在下侧镜框，**直接**朝向眼睛做特写采集（不经过镜片反射），同时把反射透镜装在翻折镜片上，用于OLED显示那条线（光路从OLED经镜片反射进眼睛），两件事物理上独立，此前讨论中曾一度混淆成"OV9281通过反射镜间接拍眼睛"，已经用户确认更正为：反射镜只服务于OLED显示光路，OV9281是直接朝向眼睛的特写采集，不涉及反射。
+Based on this, the user proposed a new hardware concept: mount the OV9281 on the lower frame, aimed **directly** at the eye for a close-up capture (not via a reflection off the lens), while putting the reflective lens on the fold-flip lens, serving the OLED-display light path (the light path goes from the OLED, reflects off the lens, into the eye) — the two things are physically independent. Earlier discussion had at one point conflated this into "OV9281 indirectly shooting the eye via a reflection," which the user has now confirmed and corrected to: the reflective mirror only serves the OLED-display light path, the OV9281 is a direct close-up capture of the eye, no reflection involved.
 
-**代价**：放弃MediaPipe这条已验证的无IR方案（它需要全脸输入，喂眼部特写图会在人脸检测步骤直接失败，这是已验证结论，不是猜测）。要在眼部特写+无IR的条件下继续追求"计算机视觉替代IR"这个目标，需要专门针对眼部裁剪图（不是全脸）设计的检测模型，这也是本阶段开始找候选方案的直接动机。
+**Cost**: giving up the already-validated no-IR MediaPipe approach (it requires full-face input, feeding it a close-up eye crop fails immediately at the face-detection step — this is an already-validated conclusion, not a guess). To keep pursuing "computer vision replacing IR" under close-up-eye-crop + no-IR conditions requires a detection model specifically designed for eye crops (not a full face), which is also the direct motivation for this stage's search for candidates.
 
-### 7e.2 DeepVOG——排除，依赖的包名已从PyPI消失
+### 7e.2 DeepVOG — Excluded, Its Dependency Package Has Vanished From PyPI
 
-此前7d.3节把DeepVOG列为"备选方案"之一，描述为"2024年7月还有更新"，本阶段实测后**需要更正这个判断**：
+Section 7d.3 earlier listed DeepVOG as a "candidate," described as "still updated as of July 2024" — this stage's actual testing requires **correcting that judgment**:
 
-- PyPI元数据实测确认，DeepVOG v1.1.4 的发布日期是 **2019-07-31**，不是2024年——此前的"近期更新"说法是信息源有误，这里做更正
-- `pip install deepvog` 报错：源码包`setup.py`里的依赖声明`python_version>"3.7"`缺少分号，是不规范的PEP 508环境标记写法，现代`setuptools`/`packaging`库严格校验，直接拒绝解析，报`InvalidRequirement`
-- 绕过方式：改用预编译wheel直接安装（`pip install --only-binary :all: deepvog`），跳过`setup.py`执行，确认这一步能解决环境标记解析报错
-- 但装到一半卡在真正的硬伤——**依赖`tensorflow-gpu>=1.12.0`，这个包名本身已经从PyPI移除多年**（TF 2.1之后`tensorflow-gpu`被官方废弃合并进普通`tensorflow`包），pip报"Could not find a version that satisfies the requirement ... (from versions: none)"，这不是版本不兼容，是这条依赖链路已经不存在，任何现代环境都装不上
-- **结论**：DeepVOG是2019年的TF1.x时代项目，年久失修程度和此前评估过的`GazeML`是同一档，不该归类为"相对更新的选项"，这是对7d.3节原有描述的修正
+- PyPI metadata, measured directly, confirms DeepVOG v1.1.4's release date is **2019-07-31**, not 2024 — the earlier "recently updated" claim was based on faulty information, corrected here
+- `pip install deepvog` fails: the source package's `setup.py` has a dependency declaration `python_version>"3.7"` missing a semicolon — a malformed PEP 508 environment-marker syntax, which modern `setuptools`/`packaging` libraries validate strictly and reject outright, raising `InvalidRequirement`
+- Workaround: switch to installing a pre-built wheel directly (`pip install --only-binary :all: deepvog`), skipping `setup.py` execution — confirmed this step resolves the environment-marker parse error
+- But it then got stuck on a genuine hard blocker — **it depends on `tensorflow-gpu>=1.12.0`, and this package name itself has been removed from PyPI for years** (after TF 2.1, `tensorflow-gpu` was officially deprecated and merged into the plain `tensorflow` package), pip reports "Could not find a version that satisfies the requirement ... (from versions: none)" — this isn't a version-incompatibility issue, it's that this dependency chain no longer exists at all, no modern environment can install it
+- **Conclusion**: DeepVOG is a 2019-era TF1.x project, the same tier of unmaintained-ness as the already-evaluated `GazeML` — it shouldn't be classified as "a relatively more recent option," this corrects the earlier description in Section 7d.3
 
-### 7e.3 EllSeg——技术路线合理，但网络环境导致今晚无法验证
+### 7e.3 EllSeg — Technically Sound Route, But the Network Environment Prevented Verification Tonight
 
-调研确认EllSeg（`RSKothari/EllSeg`）是纯PyTorch实现的瞳孔/虹膜椭圆分割框架，直接提供预训练checkpoint，不需要本地训练，三种backbone可选（含仅0.25M参数的轻量版RITnet backbone）。相比DeepVOG，这条路线没有TF1.x断链依赖的问题。
+Research confirmed EllSeg (`RSKothari/EllSeg`) is a pure-PyTorch implementation of a pupil/iris ellipse-segmentation framework, directly providing pre-trained checkpoints, no local training needed, with three selectable backbones (including a lightweight RITnet-backbone variant at only 0.25M parameters). Compared to DeepVOG, this route doesn't have the TF1.x dependency dead-end problem.
 
-已知风险（测试前识别，不是测试后发现）：训练数据集为NVGaze、OpenEDS、RIT-Eyes，这几个数据集均采集自VR/AR头显场景，大概率延续了此前调研RITnet时识别过的同一问题——训练分布是近红外头显图像，不是可见光深色虹膜，迁移到当前场景可能复现同样的域差失败。这个风险属于"可测试的风险"（装上后跑一遍就知道结果），区别于PupilSense遇到的"装不上的风险"。
+Known risk (identified before testing, not discovered after): the training datasets are NVGaze, OpenEDS, RIT-Eyes, which with high likelihood continue the same problem already identified when researching RITnet — the training distribution is near-infrared head-mounted-display imagery, not visible-light dark irises — transferring it to the current scenario could reproduce the same domain-gap failure. This risk belongs to the category of "a risk that can be tested" (install it, run it once, and you'll know), distinct from the "a risk that blocks installation" PupilSense ran into.
 
-**实际执行受阻**：尝试`git clone`该仓库两次，均在传输中途被网络连接重置中断（"transfer closed with outstanding read data remaining"、"Recv failure: Connection was reset"），不是配置问题，是当晚网络环境对大体积/长连接HTTPS传输不稳定——这与同一晚DeepVOG的92MB wheel下载缓慢（约5-7KB/s）是同一类环境限制的不同表现。第三次尝试换用`codeload.github.com`的zip直链下载时，触发了工具侧的安全分类器拦截，且提示该拦截绑定当前对话历史、本对话内重试无效。
+**Actual execution was blocked**: attempted `git clone` of this repo twice, both interrupted mid-transfer by the network connection resetting ("transfer closed with outstanding read data remaining", "Recv failure: Connection was reset") — not a configuration problem, the network environment that night was unstable for large/long-lived HTTPS transfers — the same class of environmental limitation manifesting differently as DeepVOG's slow 92MB wheel download that same night (about 5-7KB/s). A third attempt, switching to a direct zip download via `codeload.github.com`, triggered the tool-side safety classifier's block, which is noted as bound to this specific conversation history, with no retry possible within this conversation.
 
-**结论**：EllSeg作为候选方案本身没有被证伪，是当晚的网络/工具环境限制了验证，不是方案本身的问题，需要在新的对话/更稳定的网络环境下重新尝试。
+**Conclusion**: EllSeg as a candidate has not itself been falsified — tonight's network/tool environment is what limited the validation, not a problem with the approach itself — needs retrying in a new conversation/a more stable network environment.
 
-### 7e.4 PupilSense——排除（本次环境），卡在编译工具链而非网络
+### 7e.4 PupilSense — Excluded (in This Environment), Blocked by the Compile Toolchain, Not the Network
 
-PupilSense（`stevenshci/PupilSense`）设计目标与当前需求高度吻合——**明确基于可见光（手机前摄）**，流程是先检测裁剪左右眼图像，再用深度学习模型做瞳孔-虹膜比例估计，这正是"眼部特写、不需要全脸、不需要IR"的目标场景。
+PupilSense (`stevenshci/PupilSense`)'s design goal matches the current need closely — **explicitly based on visible light (phone front camera)**, the pipeline first detects and crops left/right eye images, then uses a deep-learning model to estimate the pupil-to-iris ratio — exactly the target scenario of "close-up eye crop, no full face needed, no IR needed."
 
-但核心依赖是**Detectron2**（Meta的PyTorch分割框架），排查确认：
-- Detectron2官方明确不支持Windows，没有Windows预编译wheel，必须本地编译C++扩展
-- 实测确认本机完全没有安装MSVC编译器（`cl.exe`、`cmake.exe`均未找到）
-- 装MSVC编译器（Visual Studio Build Tools）本身是另一个体积不小的下载，且编译过程还涉及PyTorch/CUDA/Detectron2三者版本精确匹配，社区记录的常见错误包括编译器缺失、路径问题、版本不匹配等多种独立故障模式
-- 社区公认更可靠的路径是WSL2+Docker（绕开Windows原生编译问题），但这是另起一套环境的工作量
+But its core dependency is **Detectron2** (Meta's PyTorch segmentation framework), and checking confirmed:
+- Detectron2 officially does not support Windows, no pre-built Windows wheel, must compile the C++ extension locally
+- Confirmed this machine has no MSVC compiler installed at all (`cl.exe`, `cmake.exe` both not found)
+- Installing an MSVC compiler (Visual Studio Build Tools) is itself another sizeable download, and the compile process also involves precisely matching PyTorch/CUDA/Detectron2 version triplets — community-documented common failure modes include missing compiler, path issues, version mismatches, and more, each an independent failure mode
+- The community-recognized more reliable path is WSL2+Docker (sidestepping native Windows compile issues), but that's setting up an entirely separate environment's worth of work
 
-**结论**：PupilSense卡住的不是"装得慢"，是本机当前**没有能编译它的工具链**，继续下载只会在编译阶段确定性失败。这是方案本身在当前环境下不可行，不是方案设计有问题——其"可见光+眼部裁剪"的设计思路仍是今后值得优先复测的方向，前提是先配好WSL2/Docker环境或换一台已装好C++编译工具链的机器。
+**Conclusion**: what's stuck for PupilSense isn't "slow to install," it's that this machine currently **has no toolchain capable of compiling it** — continuing the download would only hit a deterministic failure at the compile stage. This is the approach being infeasible in the current environment, not a problem with the approach's design — its "visible-light + eye-crop" design idea is still worth re-testing first in the future, provided WSL2/Docker is set up first, or a different machine with the C++ compile toolchain already installed is used.
 
-### 7e.5 KD-Eye、"Adapting SAM for Visible-Light Pupil Segmentation"——排除，无公开代码
+### 7e.5 KD-Eye, "Adapting SAM for Visible-Light Pupil Segmentation" — Excluded, No Public Code
 
-两篇论文均在定位上与需求高度相关：
-- **KD-Eye**（WASA 2024/Springer）：轻量级知识蒸馏瞳孔分割，针对VR头显场景，号称分割速度提升240倍
-- **"Adapting SAM for Visible-Light Pupil Segmentation Baseline"**（Electronics 2025, MDPI）：**明确针对可见光、深色虹膜场景**设计，三阶段SAM适配流程，在UBIRIS.v2等标准可见光数据集上报告mIOU 79.37/DICE 87.79（瞳孔分割）
+Both papers are highly relevant to the need by positioning:
+- **KD-Eye** (WASA 2024/Springer): lightweight knowledge-distillation pupil segmentation, targeting VR headset scenarios, claims a 240x speedup in segmentation
+- **"Adapting SAM for Visible-Light Pupil Segmentation Baseline"** (Electronics 2025, MDPI): **explicitly designed for visible-light, dark-iris scenarios**, a three-stage SAM-adaptation pipeline, reporting mIOU 79.37/DICE 87.79 (pupil segmentation) on standard visible-light datasets like UBIRIS.v2
 
-两篇论文搜索均未找到配套的公开GitHub代码仓库或预训练权重，只有论文本身。纯学术论文，无可运行产物，今晚（及可预见的短期内）无法测试。SAM适配版额外的风险是SAM基础模型本身体量很大（数百MB到GB级），即使未来找到代码，仍可能重演当晚的网络下载问题。
+Neither paper's search turned up an accompanying public GitHub code repository or pre-trained weights — only the papers themselves. Pure academic papers, no runnable artifact, untestable tonight (and in the foreseeable near term). The SAM-adapted version has an additional risk that the SAM base model itself is large (hundreds of MB to GB-scale), so even if code is found in the future, it could easily re-encounter that night's network download problems.
 
-### 7e.6 本阶段候选方案排查结论汇总
+### 7e.6 This Stage's Candidate Survey — Summary of Conclusions
 
-| 候选                               | 技术路线匹配度                  | 今晚可行性         | 排除/受阻原因                                               |
+| Candidate | Technical-route fit | Feasibility tonight | Exclusion/blocking reason |
 | -------------------------------- | ------------------------ | ------------- | ----------------------------------------------------- |
-| MediaPipe FaceLandmarker（7d.3已测） | 低（需全脸，与本阶段眼部特写新方向冲突）     | 已验证可行但方向不再适用  | 架构要求全脸输入，不适配新硬件设计                                     |
-| DeepVOG                          | 中（专为眼部裁剪图设计）             | ❌ 不可行         | 依赖包`tensorflow-gpu`已从PyPI消失，任何现代环境均无法安装               |
-| EllSeg                           | 中高（PyTorch，眼部裁剪图，有预训练权重） | ⚠️ 未验证（非方案问题） | 网络环境导致git clone两次中途断连，第三次下载尝试被工具安全机制拦截                |
-| PupilSense                       | 高（可见光、手机摄像头设计思路最贴近需求）    | ❌ 本机环境不可行     | 依赖Detectron2，Windows无预编译wheel，本机无MSVC编译器，需WSL2/Docker |
-| KD-Eye                           | 高（轻量、知识蒸馏，适合资源受限设备）      | ❌ 不可行         | 无公开代码/权重，纯论文                                          |
-| SAM可见光瞳孔分割                       | 最高（明确针对可见光+深色虹膜）         | ❌ 不可行         | 无公开代码/权重，且SAM基础模型体量大                                  |
+| MediaPipe FaceLandmarker (tested in 7d.3) | Low (needs full face, conflicts with this stage's new close-up-eye-crop direction) | already validated viable but the direction no longer applies | architecture requires full-face input, doesn't fit the new hardware design |
+| DeepVOG | Medium (purpose-designed for eye crops) | ❌ not feasible | its `tensorflow-gpu` dependency has vanished from PyPI, cannot be installed in any modern environment |
+| EllSeg | Medium-high (PyTorch, eye crops, has pre-trained weights) | ⚠️ unverified (not a problem with the approach) | network environment caused `git clone` to disconnect mid-transfer twice, the third download attempt was blocked by the tool's safety mechanism |
+| PupilSense | High (visible-light, phone-camera design idea closest to the need) | ❌ not feasible on this machine | depends on Detectron2, no pre-built Windows wheel, this machine has no MSVC compiler, needs WSL2/Docker |
+| KD-Eye | High (lightweight, knowledge distillation, suited to resource-constrained devices) | ❌ not feasible | no public code/weights, paper only |
+| SAM visible-light pupil segmentation | Highest (explicitly targets visible light + dark iris) | ❌ not feasible | no public code/weights, and the SAM base model is itself large |
 
-本阶段没有产出新的成功率数字——六个候选中四个因客观环境限制（依赖失效、无编译工具链、无公开代码、网络不稳定）未能运行，不是方法论上的失败，而是如实记录"今晚这个环境下，无IR+眼部特写这条线暂时卡在了工程可用性，而不是检测精度"。这与第六、六c阶段"程序输出看似成功，视觉复核后推翻"的失败模式性质不同——这次是连运行都没能跑起来，谈不上对精度下结论。
+This stage produced no new success-rate numbers — four of the six candidates were unable to run due to objective environmental limitations (dead dependency, no compile toolchain, no public code, unstable network), not a methodological failure, but an honest record that "in tonight's environment, the no-IR + close-up-eye-crop line is temporarily stuck on engineering usability, not detection precision." This is a different failure mode in nature from Stages 6/6c's "program output looked successful, overturned on visual review" — this time it didn't even get to running, let alone reaching a conclusion about precision.
 
-### 7e.7 ESP32CAM联调固件：与眼动检测算法解耦的并行工作
+### 7e.7 ESP32CAM Integration Firmware: Work Parallel to and Decoupled From the Eye-Detection Algorithm
 
-同一晚，根据老师261017会议纪要中"ESP32-CAM独立连OLED，眼部摄像头延长线直连PC"的确认方案，新建固件替换了`261003/esp32_camera2_OLED_object_detection.ino`里"本地Edge Impulse推理+本地OLED显示"的闭环逻辑，改为"PC端融合判断、ESP32CAM只负责WiFi推流画面和接收PC指令画OLED"的架构，代码与本报告路径区分，存放于新建的`261022/`文件夹：
+The same night, per the confirmed plan in the teacher's 261017 meeting notes ("ESP32-CAM connects independently to the OLED, the eye camera runs an extension cable straight to the PC"), new firmware was written replacing the "local Edge Impulse inference + local OLED display" closed-loop logic in `261003/esp32_camera2_OLED_object_detection.ino`, switching to an architecture of "PC-side fusion judgment, ESP32CAM only handles WiFi-streaming the frame and receiving PC commands to draw on the OLED," with code kept separate from this report's path, stored in a newly created `261022/` folder:
 
-- `261022/esp32cam_wifi_mask_server/esp32cam_wifi_mask_server.ino`：提供`/capture`（单帧JPEG轮询）、`/mask`（OLED画/清密集文字遮挡矩形）、`/status`（健康检查）三个HTTP接口，摄像头引脚和OLED接线复用自`261003/`已验证配置，未改动
-- `261022/test_esp32cam_link.py`：PC侧链路验证脚本，依次测三个接口
-- 当前阶段OLED屏幕直接代表"人眼看到的范围"（用户尚未安装光学透镜），`/mask`的坐标参数是OLED自身像素坐标，不经过场景摄像头到OLED的几何映射转换；等透镜装上、完成标定后需要替换成标定矩阵换算后的坐标
-- 这部分工作独立于本节的眼动检测算法选型，不依赖今晚受阻的任何深度学习方案，可以用现有`pupil_detector.py`（已知无IR 0%成功率，仅用于验证链路通不通）先行联调
+- `261022/esp32cam_wifi_mask_server/esp32cam_wifi_mask_server.ino`: provides three HTTP endpoints, `/capture` (single-frame JPEG poll), `/mask` (draw/clear a dense-text occlusion rectangle on the OLED), `/status` (health check) — camera pins and OLED wiring reused as-is from the already-validated config in `261003/`
+- `261022/test_esp32cam_link.py`: the PC-side link-validation script, testing the three endpoints in sequence
+- Currently, the OLED screen directly represents "the range the human eye can see" (the user hasn't yet installed the optical lens), `/mask`'s coordinate parameters are the OLED's own pixel coordinates, not passed through any geometric mapping from the scene camera to the OLED; once the lens is installed and calibration is done, this needs to switch to coordinates converted through the calibration matrix
+- This piece of work is independent of this section's eye-detection-algorithm selection, does not depend on any deep-learning approach blocked tonight, and can proceed to integration right away using the existing `pupil_detector.py` (known no-IR 0% success rate, only used here to validate whether the link works at all)
 
-### 7e.8 下一步
+### 7e.8 Next Steps
 
-- 眼动检测算法：换一个新的对话/更稳定的网络环境后，优先验证EllSeg（技术路线无硬伤，只是当晚环境受阻）；PupilSense需要先解决WSL2/Docker或MSVC编译环境后再评估
-- ESP32CAM联调：等待用户新采购的、带延长线的摄像头到货后，用`261022/`现有固件+脚本直接测试链路
-- 若眼部特写+无IR方向最终仍无法达到可用精度，仍需回退到IR补光方案（27.2%已验证基线），与7d.4节的判断一致：两条探索路线不阻塞主线推进
+- Eye-detection algorithm: once in a new conversation/a more stable network environment, prioritize validating EllSeg (no fundamental problem with the technical route, just blocked by tonight's environment); PupilSense needs WSL2/Docker or an MSVC compile environment resolved first before evaluating
+- ESP32CAM integration: once the user's newly purchased camera with an extension cable arrives, test the link directly with the existing firmware+scripts in `261022/`
+- If the close-up-eye-crop + no-IR direction ultimately can't reach usable precision, still need to fall back to the IR-fill-light plan (the already-validated 27.2% baseline), consistent with Section 7d.4's judgment: neither exploration route blocks the main line's progress
 
 ---
 
-## 7f. 第七f阶段：EllSeg 深度学习方案验证（2026-10-23）
+## 7f. Stage 7f: EllSeg Deep-Learning Approach Validation (2026-10-23)
 
-### 7f.1 安装：绕开大体积权重文件，解决7e.3节未完成的网络问题
+### 7f.1 Installation: Bypassing the Large Weight Files, Resolving 7e.3's Unfinished Network Problem
 
-本次网络环境对 `github.com` 本身的直连仍不稳定（`curl https://github.com` 实测超时），但 `codeload.github.com`（打包下载）和 `raw.githubusercontent.com`（单文件）响应正常，这与7e.3节记录的限制是同一类问题的延续，不是已解决。
+Direct connectivity to `github.com` itself was still unstable this round (`curl https://github.com` timed out in practice), but `codeload.github.com` (packaged downloads) and `raw.githubusercontent.com` (single files) responded normally — the same class of limitation recorded in 7e.3, not yet resolved.
 
-EllSeg仓库GitHub API报告的`size`字段约220MB，但这是git历史总量，不是工作区实际体积——经`git/trees`API逐文件核查，工作区实际只有约86MB，且几乎全部集中在`weights/`下7个预训练权重文件（每个约10MB，对应7种训练集组合）和`figures/`下的演示图片/GIF（约12MB），核心代码不到1MB。
+The EllSeg repo's GitHub API reports a `size` field of about 220MB, but this is the total git history, not the actual working-tree size — checking file by file via the `git/trees` API, the working tree is actually only about 86MB, with almost all of it concentrated under `weights/` (7 pre-trained weight files, about 10MB each, corresponding to 7 training-set combinations) and `figures/` (demo images/GIFs, about 12MB); the core code itself is under 1MB.
 
-**解决方法**：不做整仓库`git clone`，改用两步拉取：
-1. `git clone --filter=blob:limit=2m --no-checkout`——只拉取2MB以下的blob（涵盖全部代码文件），跳过7个10MB权重和演示图片，约2分钟完成
-2. `git sparse-checkout`（`--no-cone`模式），用排除规则跳过6个权重文件（只保留`weights/all.git_ok`，README推荐的"在全部数据集上训练、最适合部署"的版本）和全部`figures/`内容，`git checkout master`约5分钟拉取代码+这一个10.2MB权重文件，总计24MB
+**Solution**: instead of a full `git clone`, used a two-step pull:
+1. `git clone --filter=blob:limit=2m --no-checkout` — only pulls blobs under 2MB (covering all code files), skipping the 7 10MB weight files and the demo images, done in about 2 minutes
+2. `git sparse-checkout` (`--no-cone` mode), with exclusion rules skipping 6 of the weight files (keeping only `weights/all.git_ok`, the version the README recommends as "trained on all datasets, best suited for deployment") and all of `figures/`, then `git checkout master` pulls the code + this one 10.2MB weight file, about 5 minutes, 24MB total
 
-这个方法论上与此前项目"只测需要的、不做无谓的大批量操作"的原则是一致的——不是网络环境变好了就能不加选择地整仓库下载，而是先用API确认体积分布，再精确只取需要的部分。
+This method is methodologically consistent with this project's existing principle of "only test what's needed, don't do indiscriminate bulk operations" — it's not that the network got better so an indiscriminate full-repo download became fine, it's using the API to confirm the size distribution first, then precisely taking only the needed part.
 
-### 7f.2 依赖安装
+### 7f.2 Dependency Installation
 
-本机已有 opencv-python 4.10.0.84、numpy 2.5.1、scipy、matplotlib、scikit-image。额外需要：
+This machine already has opencv-python 4.10.0.84, numpy 2.5.1, scipy, matplotlib, scikit-image. Additionally needed:
 
-| 包 | 版本 | 说明 |
+| Package | Version | Note |
 |---|---|---|
-| torch | 2.14.1+cpu | 改用 `download.pytorch.org/whl/cpu` 索引而非默认PyPI，CPU版约124MB；本机有RTX 4070但CUDA版wheel普遍2-3GB，按当晚实测约25-30KB/s的PyPI直连速度会超过1小时，CPU版约124MB在pytorch官方CDN上实测244KB/s，几分钟内装完——这也是"不默认选GPU版，先核实下载成本"的具体应用 |
-| torchvision | 0.29.1+cpu | 同上索引 |
-| scikit-learn | 1.9.1 | EllSeg内部用于RANSAC椭圆拟合（ElliFit）与欧氏距离度量 |
-| tqdm | 4.70.1 | 进度条，训练/测试脚本自带依赖 |
+| torch | 2.14.1+cpu | switched to the `download.pytorch.org/whl/cpu` index rather than the default PyPI; the CPU version is about 124MB; this machine has an RTX 4070 but CUDA wheels are typically 2-3GB, and at that night's measured PyPI direct-connect speed of about 25-30KB/s would take over an hour; the CPU version measured 244KB/s on PyTorch's official CDN, installed in a few minutes — another concrete application of "don't default to GPU, verify the download cost first" |
+| torchvision | 0.29.1+cpu | same index as above |
+| scikit-learn | 1.9.1 | used internally by EllSeg for RANSAC ellipse fitting (ElliFit) and Euclidean-distance metrics |
+| tqdm | 4.70.1 | progress bar, a dependency the training/test scripts already bundle |
 
-### 7f.3 代码兼容性修复：2020年代码 vs numpy 2.x
+### 7f.3 Code Compatibility Fix: 2020s Code vs. numpy 2.x
 
-EllSeg最后一次更新停留在2020-2021年（README明确写着"请使用另一个内部仓库"，GitHub上的这份已不再维护），其`np.int(...)`、`np.float(...)`、`np.bool(...)`等写法是当时numpy的合法用法，但在numpy≥1.24后这些别名被移除（本机numpy 2.5.1），直接触发`AttributeError`。
+EllSeg's last update was in 2020-2021 (the README explicitly says "please use another internal repository" — this GitHub copy is no longer maintained). Its usage of `np.int(...)`, `np.float(...)`, `np.bool(...)` was valid numpy syntax at the time, but these aliases were removed in numpy ≥1.24 (this machine's numpy is 2.5.1), triggering an immediate `AttributeError`.
 
-修复范围：`models/RITnet_v2.py`、`RITnet_v3.py`、`RITnet_v4.py` 三个文件的`getSizes()`函数里的`np.int(...)`已改为`int(...)`（numpy官方废弃说明原文：“这样改不会改变任何行为，是安全的”，不涉及任何算法逻辑改动）。`RITnet_v7.py`里同样一处改动被工具侧的安全拦截机制挡下（与7c.3、7e.3记录的同一类会话级拦截，这次确认是**绑定具体文件/改动内容**，不是全局性拦截——同一会话里改别的文件、甚至改同一个脚本的其他内容都不受影响）。
+Scope of the fix: in `models/RITnet_v2.py`, `RITnet_v3.py`, `RITnet_v4.py`, the `np.int(...)` in each file's `getSizes()` function was changed to `int(...)` (numpy's own deprecation note states explicitly: "this change doesn't alter any behavior, it's safe," no algorithm logic is touched). One identical change in `RITnet_v7.py` was blocked by the tool-side safety mechanism (the same class of session-level block recorded in 7c.3 and 7e.3 — this time confirmed to be **bound to the specific file/change content**, not a global block — editing other files, or even other content in the same script, in the same conversation is unaffected).
 
-由于本次推理只需要`ritnet_v3`这一个架构（EllSeg官方`evaluate_ellseg.py`自己硬编码默认用的就是这个），绕过方法是不整体`import modelSummary`（它会在模块加载时把全部7个架构都提前实例化一遍，这正是触发RITnet_v7报错的原因），改为只单独`from models.RITnet_v3 import DenseNet2D`，彻底不触碰RITnet_v7.py，不需要修复那一处就能正常运行。`utils.py`、`helperfunctions.py`里另外几处`np.bool`/`np.float`经核查属于训练期指标计算函数（IoU/点距离等，需要ground truth标签），推理脚本未调用到，不影响运行。
+Since this round of inference only needs the `ritnet_v3` architecture (EllSeg's official `evaluate_ellseg.py` itself hardcodes this as its default), the workaround was to avoid `import modelSummary` as a whole (which instantiates all 7 architectures upfront at module load time — exactly what triggers the RITnet_v7 error), instead doing `from models.RITnet_v3 import DenseNet2D` directly, never touching `RITnet_v7.py` at all — no need to fix that one spot to run normally. A few other `np.bool`/`np.float` spots in `utils.py` and `helperfunctions.py`, on inspection, belong to training-time metric-computation functions (IoU, point-distance, etc., which need ground-truth labels) — the inference script never calls them, so they don't affect running.
 
-### 7f.4 推理脚本与运行
+### 7f.4 Inference Script and Run
 
-写入`261004/run_ellseg_inference.py`，复用EllSeg官方`evaluate_ellseg.py`里的核心函数（`preprocess_frame`预处理、`evaluate_ellseg_on_image`前向推理、`rescale_to_original`坐标还原、`plot_segmap_ellpreds`标注可视化），但输入源从"逐帧解码mp4视频"改为直接读取`data/eye/*.png`这20张第六阶段已采集的无IR特写样本（与Otsu法0/20、星射线法程序30%/人工复核约10%是同一批数据，保证三种方法的比较只有算法这一个变量）。沿用项目既有的中文路径安全读写模式（`np.fromfile`+`cv2.imdecode`读、`cv2.imencode`+`tofile`写）。
+Wrote `261004/run_ellseg_inference.py`, reusing EllSeg's official core functions from `evaluate_ellseg.py` (`preprocess_frame` for preprocessing, `evaluate_ellseg_on_image` for the forward pass, `rescale_to_original` for coordinate restoration, `plot_segmap_ellpreds` for annotated visualization), but switched the input source from "decoding an mp4 video frame by frame" to directly reading the 20 no-IR close-up samples already captured in Stage 6 from `data/eye/*.png` (the same batch as the Otsu method's 0/20 and the starburst method's program 30%/manual review about 10%, keeping the algorithm as the only variable across the three-way comparison). Kept reusing the project's existing non-ASCII-path-safe I/O pattern (read with `np.fromfile`+`cv2.imdecode`, write with `cv2.imencode`+`tofile`).
 
-椭圆来源选择EllSeg自身的潜空间回归头（`ellseg_ellipses=1`），而不是对分割mask做RANSAC椭圆拟合（`ellseg_ellipses=0`）——前者是EllSeg论文的核心贡献和推荐用法，后者只是一个可选的对照模式。
+Chose EllSeg's own latent-space regression head for the ellipse output (`ellseg_ellipses=1`), rather than RANSAC ellipse-fitting on the segmentation mask (`ellseg_ellipses=0`) — the former is EllSeg's paper's core contribution and its recommended usage, the latter is only an optional comparison mode.
 
-CPU推理，20张图运行耗时数秒。**程序原始输出：20/20 "检出"（100%）**。
+CPU inference, running on 20 images took a few seconds. **Program's raw output: 20/20 "detected" (100%)**.
 
-### 7f.5 视觉复核——程序100%被大幅下修，但结果仍显著优于此前所有方法
+### 7f.5 Visual Review — the Program's 100% Was Substantially Revised Down, But the Result Is Still Markedly Better Than All Previous Methods
 
-按本报告反复强调的方法论（6.3、7a.4、7d.2），100%这个数字在被逐张目视核查前不采信。生成了放大联系表（`data/results/ellseg_audit_batch0~2.png`，4×5网格300px缩略图）和3张针对疑似误判/边界样本的进一步放大图（`ellseg_audit_zoom1~3.png`，400px），逐张检查红色瞳孔椭圆预测是否真的落在模型自己输出的金色瞳孔分割mask和角膜反光点（catchlight）上——这是本阶段的核查判据：EllSeg除了输出椭圆参数，同时输出像素级分割mask，二者若不重合，说明椭圆拟合头把结果"带偏"了，这与此前Otsu/星射线法里"高光/眼睑阴影把轮廓带偏"是同一类错误模式，只是这次有分割mask可以交叉验证，核查比之前几轮更可靠。
+Per this report's recurring methodology (Sections 6.3, 7a.4, 7d.2), the 100% figure is not accepted before being reviewed frame by frame. Generated enlarged contact sheets (`data/results/ellseg_audit_batch0~2.png`, 4×5 grids, 300px thumbnails) and 3 further enlarged images for suspected-misjudged/borderline samples (`ellseg_audit_zoom1~3.png`, 400px), checking frame by frame whether the red pupil-ellipse prediction genuinely lands on the model's own gold-colored pupil-segmentation mask and the corneal reflection (catchlight) — this is the auditing criterion for this stage: EllSeg outputs both ellipse parameters and a pixel-level segmentation mask, and if the two don't overlap, it means the ellipse-fitting head got "pulled off" — the same class of error seen in Otsu/starburst's "highlights/eyelid shadows pulling the contour off," just that this time there's a segmentation mask available for cross-validation, making this review more reliable than earlier rounds.
 
-逐张分类结果（完整记录见`data/results/ellseg_visual_audit.csv`）：
+Frame-by-frame classification results (full record at `data/results/ellseg_visual_audit.csv`):
 
-| 类别 | 数量 | 判定依据 |
+| Category | Count | Basis for judgment |
 |---|---|---|
-| 视觉确认正确 | 13/20 | 椭圆与分割mask重合、中心落在角膜反光点上 |
-| 误判——眼睑遮挡/眯眼（不公平帧） | 5张（458032, 463868, 470346, 483568, 503787） | 眼睑遮挡导致分割mask破碎或缺失，椭圆位置与mask明显不重合（部分样本mask完全在椭圆外） |
-| 误判——睁眼状态下的真实检测失败（公平帧） | 2张（687750, 693926） | 椭圆形状退化（过窄/偏小）或偏离实际反光点，眼部本身清晰可见但模型仍判断错误 |
+| Visually confirmed correct | 13/20 | ellipse overlaps with the segmentation mask, center lands on the corneal reflection point |
+| Misjudged — eyelid occlusion/squint (unfair frame) | 5 (458032, 463868, 470346, 483568, 503787) | eyelid occlusion caused the segmentation mask to be fragmented or missing, the ellipse position clearly doesn't overlap the mask (part of the mask is entirely outside the ellipse for some samples) |
+| Misjudged — genuine detection failure with eyes open (fair frame) | 2 (687750, 693926) | the ellipse shape is degenerate (too narrow/too small) or off from the actual reflection point, the eye itself is clearly visible but the model still judges it wrong |
 
-**两种口径的成功率**（沿用7a.4节确立的"公平帧/不公平帧"分母方法）：
+**Two success-rate bases** (reusing the "fair frame/unfair frame" denominator method established in 7a.4):
 ```
-全帧口径（原始分母，20）  = 13/20 = 65.0%
-公平帧口径（排除5张遮挡/眯眼帧，分母15） = 13/15 = 86.7%
+Whole-frame basis (raw denominator, 20) = 13/20 = 65.0%
+Fair-frame basis (excluding the 5 occlusion/squint frames, denominator 15) = 13/15 = 86.7%
 ```
 
-### 7f.6 与此前所有方法的横向对比
+### 7f.6 Horizontal Comparison With All Previous Methods
 
-| 方法 | 光照条件 | 程序报告 | 人工复核后可信数字 |
+| Method | Lighting condition | Program-reported | Trustworthy figure after manual review |
 |---|---|---|---|
-| Otsu阈值法（6.4节） | 无IR | 0/20 (0%) | 0/20 (0%) |
-| 星射线法（7d.2节） | 无IR | 6/20 (30%) | 约2/20 (10%) |
-| Otsu阈值法（7a.4节） | 850nm IR补光 | 22/100 (22%) | 22/81 公平帧 (27.2%) |
-| **EllSeg（本节）** | **无IR** | **20/20 (100%)** | **13/20 全帧 (65.0%) / 13/15 公平帧 (86.7%)** |
+| Otsu threshold method (Section 6.4) | no IR | 0/20 (0%) | 0/20 (0%) |
+| Starburst method (Section 7d.2) | no IR | 6/20 (30%) | about 2/20 (10%) |
+| Otsu threshold method (Section 7a.4) | 850nm IR fill | 22/100 (22%) | 22/81 fair frames (27.2%) |
+| **EllSeg (this section)** | **no IR** | **20/20 (100%)** | **13/20 whole-frame (65.0%) / 13/15 fair-frame (86.7%)** |
 
-**这是本项目迄今为止最重要的单项发现**：在完全不依赖IR补光硬件的条件下，EllSeg的真实（视觉核查后）检测准确率不仅远超此前所有无IR方案（星射线法10%），还显著超过了此前被认为"方向有效但不充分"的IR+经典算法基线（27.2%）。公平帧口径下86.7%的数字，是本项目第一次出现"接近可用于连续追踪"量级的结果。
+**This is the single most important finding of this project to date**: under conditions that do not rely on any IR fill-light hardware at all, EllSeg's true (post-review) detection accuracy not only far exceeds all previous no-IR approaches (starburst method's 10%), but also substantially surpasses the previously "directionally valid but insufficient" IR + classical-algorithm baseline (27.2%). The 86.7% figure under the fair-frame basis is this project's first result reaching a magnitude "approaching usable for continuous tracking."
 
-需要如实标注的限制：
-1. 样本量仍只有20帧，且是此前第六阶段用Haar cascade自动裁剪保存的小尺寸静态图（216×216～245×245像素），不是EllSeg设计目标的连续视频流，没有验证帧间稳定性/抖动
-2. 本次复核标准（椭圆是否与模型自己的分割mask重合）比此前"圆度""星射线边界点"等指标更严格，但依然是研究者单人目视判断，不是像素级ground truth标注，与此前各阶段的复核方法论一致、但精度上限也一致——都是"肉眼能看出的明显对/错"这个粒度，不是亚像素误差
-3. 5张"不公平帧"全部来自眼睑遮挡/眯眼，这与7a.4节IR测试中19%不公平帧占比的量级接近，提示即使换了检测算法，"头部/眼睑姿态导致的采集质量问题"仍是独立于算法选型的一个工程变量
+Limitations that must be honestly noted:
+1. The sample size is still only 20 frames, and these are small static images saved via Stage 6's automatic Haar-cascade cropping (216×216~245×245 pixels) — not the continuous video stream EllSeg is designed for, frame-to-frame stability/jitter has not been validated
+2. This round's review criterion (whether the ellipse overlaps the model's own segmentation mask) is stricter than earlier indicators like "circularity" or "starburst boundary points," but is still a single researcher's visual judgment, not pixel-level ground-truth labeling — consistent with the review methodology of all earlier stages, but its precision ceiling is also the same — all at the granularity of "obviously right/wrong to the naked eye," not sub-pixel error
+3. All 5 "unfair frames" came from eyelid occlusion/squinting, a magnitude close to the 19% unfair-frame proportion in Section 7a.4's IR test, suggesting that even after switching detection algorithms, "capture-quality issues caused by head/eyelid posture" remains a variable independent of algorithm choice
 
-### 7f.7 结论与对第四步（PupilSense/WSL2）的决策
+### 7f.7 Conclusion and the Decision on the Fourth Step (PupilSense/WSL2)
 
-用户原计划：若EllSeg效果不理想，再评估是否值得花时间配置WSL2/Docker环境去测PupilSense。基于7f.5/7f.6的结果——EllSeg不仅"跑起来了"，真实精度还大幅超过此前验证过的最佳方案（IR+Otsu的27.2%），**不建议现阶段投入WSL2/Docker+Detectron2编译环境去验证PupilSense**。理由：
-1. EllSeg已经是一个在当前硬件方向（无IR、眼部特写、不需要全脸）下验证有效的候选，86.7%（公平帧）量级已经值得作为下一步主力方案推进，而不是继续横向排查更多候选
-2. PupilSense需要解决的是Detectron2在Windows下的编译工具链问题（装MSVC Build Tools+精确匹配PyTorch/CUDA/Detectron2三者版本），这本身就是7e.4节确认过的"至少另起一套环境"量级的工作量，在已有一个效果更好的候选跑通之后，继续投入的边际价值降低
-3. 如果后续EllSeg在更大样本量/连续视频流上的验证中精度明显下滑，PupilSense仍是有记录在案、可以随时重新拾起的备选（7e.4节结论未被推翻，只是优先级让位）
+The user's original plan: if EllSeg's effect wasn't satisfactory, evaluate whether it's worth spending time setting up WSL2/Docker to test PupilSense. Based on the results in 7f.5/7f.6 — EllSeg not only "ran," its true precision substantially exceeds the best previously-validated approach (IR+Otsu's 27.2%) — **not recommending investing in a WSL2/Docker+Detectron2 compile environment to validate PupilSense at this stage**. Reasons:
+1. EllSeg is already a validated-effective candidate in the current hardware direction (no IR, close-up eye crop, no full face needed) — the 86.7% (fair-frame) magnitude already warrants advancing as the primary candidate for the next step, rather than continuing to survey more candidates horizontally
+2. PupilSense needs to solve Detectron2's Windows compile toolchain problem (installing MSVC Build Tools + precisely matching PyTorch/CUDA/Detectron2 version triplets), which is itself the "at least set up a whole separate environment" magnitude of work confirmed in 7e.4 — with a better-performing candidate already running, the marginal value of continuing to invest here is lower
+3. If EllSeg's precision drops noticeably in later validation on a larger sample/continuous video stream, PupilSense remains a documented, pick-up-anytime fallback (7e.4's conclusion isn't overturned, just deprioritized)
 
-### 7f.8 下一步
+### 7f.8 Next Steps
 
-- 在更大样本量上复测EllSeg，并针对连续视频流（而不是静态裁剪图）验证帧间稳定性——当前20帧样本量级尚不足以支撑"86.7%"这个数字外推到实际使用场景
-- 评估EllSeg能否满足可穿戴设备的实时性要求（当前只验证了CPU离线推理可行，未测单帧耗时/是否需要GPU才能达到可用帧率）
-- 5张不公平帧（眼睑遮挡/眯眼）提示：无论最终选哪种检测算法，头戴式固定（7e.1节已确认的方向）对保持稳定采集角度仍然关键，这一点不因换成深度学习方法而改变
-- ESP32CAM联调（见7e.7节）：仍独立于本节工作，等待新摄像头到货后用`261022/`现有固件+脚本测试
-
----
-
-## 7g. 第七g阶段：EllSeg更大样本量+连续视频流复测（2026-10-25）
-
-### 7g.1 背景
-
-7f节的86.7%（公平帧）结论建立在20张静态裁剪图上，7f.8节明确记录这个样本量级不足以支撑外推到真实使用场景，且没有验证过连续追踪时帧与帧之间稳不稳定（静态图互相没有时间连续性，回答不了这个问题）。本阶段目的：用新采集的连续视频流数据复测，同时首次测量EllSeg处理真实连续帧的实际吞吐。
-
-### 7g.2 数据采集
-
-写入`capture_eye_video_noIR.py`，复用`eye_roi.py`已验证的Haar cascade自动ROI检测逻辑，改为持续采集一段时间内的连续帧（而非按键触发的离散单帧），严格按真实时间戳命名保存。
-
-**采集过程中的工程问题**（如实记录）：
-1. **CascadeClassifier中文路径问题复发**：报告第1.3节记录过的"OpenCV底层无法读取含中文字符路径"问题，因为项目目录后来被整体归档搬进了`作品集\课程`这个中文路径下而复发——哪怕XML文件和脚本放在同一目录，这条路径本身是中文的，问题依然成立。这意味着`eye_roi.py`等同样方式加载XML的老脚本，现在如果重新运行会报同样的错，只是近期没人重跑过没暴露。修复：把XML复制到纯ASCII路径`D:\cv_cascades`，从那里加载，不再依赖脚本自身所在目录。
-2. **Camera index再次漂移**：第一次采集意外调用了index 0（这次变成了电脑自带摄像头），重新跑`identify_camera.py`确认这次index 1才是OV9281（黑白、近距离特写、瞳孔反光点清晰），与7a.2、7b.2、7c.1记录的历次漂移是同一类问题，再次印证"camera index不能凭上次结论假设，每次都要重新核实"这条规则。
-
-**采集结果**：两次独立录制会话（按文件名时间戳聚类识别，不是同一段连续录制）：
-- Session A：77帧，裁剪尺寸仅约70-80像素，放大到EllSeg所需320宽度时严重模糊失真，画质明显劣于其余数据，本次分析中排除，仅记录采集到过
-- Session B：265帧，约19秒，裁剪尺寸约270-414像素，与7f节静态测试用的20张样本（216-245像素）量级相近，是本次分析的主力数据
-
-### 7g.3 代码缺陷排查：浮点数截断导致约2%的帧推理时崩溃
-
-首次运行`run_ellseg_video_stability.py`（复用`evaluate_ellseg.py`的`preprocess_frame`预处理逻辑，与7f节推理脚本一致）在处理到第49帧时报`RuntimeError: mat1 and mat2 shapes cannot be multiplied`。排查发现：预处理函数里用`int(img.shape[1] * (op_shape[1]/img.shape[1]))`重新计算目标宽度，数学上恒等于`op_shape[1]`（320），但浮点运算误差会让某些输入尺寸算出319.999...，被`int()`截断成319，少1像素。这1像素的差异经过模型内部多层下采样会被放大，最终导致矩阵维度不匹配而崩溃。
-
-经排查，265帧里有5帧（约1.9%）精确撞上了这个边界情况。这个bug继承自EllSeg官方`evaluate_ellseg.py`原始代码，7f节测试的20张静态图样本凑巧没有一张撞上，这次265帧的更大样本量暴露了出来——这也印证了"更大样本量复测"这件事本身的价值，不只是精度数字更可信，连代码本身的边界缺陷都需要更大样本量才能暴露。
-
-**修复**：改为直接使用`op_shape[1]`常量作为目标宽度，不再用浮点乘法重新计算，从根上消除这个误差来源。修复后265帧全部能正常通过预处理。
-
-### 7g.4 推理结果与视觉复核
-
-**真实吞吐实测**：265帧，真实墙钟耗时34.0秒，**实测7.79 FPS**（含图像读取、预处理、推理、坐标还原全流程）。这与7f.6节单帧benchmark测出的纯推理理论值（7.9 FPS）几乎完全一致，证明该benchmark的估算是准确的，真实流程的额外开销可以忽略不计。
-
-**程序报告检出率**：265/265 (100%)——与此前历次测试一样，这个数字未经视觉复核前不采信。
-
-**视觉复核**：按7f.5节建立的方法（检查瞳孔椭圆是否与EllSeg自身输出的分割mask、角膜反光点重合），从265帧里每20帧抽样一次（共14帧），逐帧放大检查：
-
-| 类别 | 数量 | 说明 |
-|---|---|---|
-| 视觉确认正确 | 12/14 | 椭圆与分割mask重合、中心落在角膜反光点上 |
-| 误判——眼睑遮挡（不公平帧） | 1帧(#220) | 眼睑几乎完全遮住眼球，椭圆落在眉毛/眼睑区域，与7a.4节"不公平帧"同一性质 |
-| 误判——明显偏移（公平帧） | 1帧(#40) | 眼睛清晰可见，但椭圆偏向分割mask的一侧，未能对齐mask主体 |
-
-```
-视觉复核后可信检出率 = 12/14 ≈ 85.7%
-```
-
-**这个数字与7f.5节的86.7%（20张静态图、公平帧口径）高度吻合**，差异在个位样本量下的正常波动范围内。这是本阶段最重要的发现：换了一批独立采集的新数据、换成连续视频场景后，EllSeg的真实准确率依然站得住，证明7f节的86.7%不是小样本量下的偶然结果，具备一定的可推广性。
-
-### 7g.5 帧间抖动分析——一个重要的统计口径陷阱
-
-对相邻帧瞳孔中心计算欧氏距离作为"帧间抖动"指标，初步结果：中位数19.6px，均值23.1px，最大116.4px，90分位44.2px。
-
-**发现统计陷阱**：对照每帧真实采集时间戳，发现录制过程中有6次相邻帧之间的真实时间间隔超过0.5秒（最长达3.76秒），对应Haar cascade在这段时间内持续检测不到眼部ROI（大概率是眨眼或头部大幅移动所致）。原始的"帧间抖动"计算把"跨越几秒钟的真实位置变化"和"正常追踪时几十毫秒内的位置变化"一视同仁地计入同一个分布，这会人为抬高最大值和高分位数——**不该直接引用最大值116.4px这类数字，它主要是采集空档的产物，不是正常追踪时真实的不稳定程度**。
-
-剔除跨越这6处大间隔的位移样本后，正常追踪段的帧间位移中位数几乎不变（19.5px vs 原始19.6px，中位数本身对少数几个异常点不敏感），但按真实时间间隔换算成速度后，正常追踪段的瞳孔中心表观移动速度中位数约701px/s、90分位约1571px/s。这个数字里仍然混合了"真实视线移动"和"检测噪声"两种成分，无法从单一数值里拆开，需要后续设计受控实验（比如固定头部+已知的视线移动模式）才能分离。
-
-**另一个需要澄清、避免误读的点**：采集到的帧真实时间间隔中位数仅26毫秒（约38Hz），这是**摄像头原始采集速度叠加Haar cascade检测速度**，不是EllSeg的处理速度——本次EllSeg推理是采集完成后离线批量跑的，与采集过程的时间节奏无关。如果未来做成实时闭环系统，实际能跟上的处理节奏是7g.4节测出的7.79FPS（约128毫秒一帧），而不是这里看到的26毫秒。两个数字分属采集链路和推理链路两个不同环节，不能混用。
-
-### 7g.6 结论与下一步
-
-1. **86.7%（7f节）→85.7%（本节，独立新数据+连续视频场景）的一致性，是EllSeg方案目前最有力的支撑证据**——不是单一样本批次的偶然结果
-2. **7.79FPS的真实吞吐已经用真实连续数据验证过，与理论估算一致**，这个数字可以作为后续是否需要GPU这一决策的可靠依据，不需要再怀疑这个估算本身的准确性
-3. **帧间抖动的真实含义仍不明确**——当前数据无法区分"检测噪声"和"真实视线移动"，需要固定头部+已知视线移动模式的受控实验才能回答
-4. 过程中暴露、修复了两个独立的工程问题（CascadeClassifier中文路径复发、预处理浮点截断bug），均已记录具体原因和修复方法，供后续类似问题排查参考
-
-**下一步**（更新7f.8节遗留的待办）：
-- 7.79FPS是否满足实际需求，需要先明确判定逻辑是"持续停留检测"（dwell-based，对帧率要求相对宽松）还是需要捕捉快速扫视的精细轨迹（对帧率要求高）——这个产品设计层面的判断尚未最终拍板，拍板后再决定是否需要投入GPU环境测速（CUDA版torch约2.45GB，当晚网速下载约需4小时）
-- 5点视线标定（瞳孔坐标→实际视线方向）仍是当前最大的技术缺口，优先级高于继续扩大EllSeg样本量本身
-- 物体识别模型（YOLO类）选型，按已有讨论排在眼动标定之后开始，避免两条线都未验证完成时互相返工
+- Re-test EllSeg on a larger sample size, and validate frame-to-frame stability on a continuous video stream (rather than static crops) — the current 20-frame sample size isn't yet enough to support extrapolating this "86.7%" figure to real-world use
+- Evaluate whether EllSeg can meet a wearable device's real-time requirement (only CPU offline-inference feasibility has been validated so far, per-frame latency / whether GPU is needed for a usable frame rate hasn't been measured)
+- The 5 unfair frames (eyelid occlusion/squinting) suggest: regardless of which detection algorithm is ultimately chosen, head-mounted fixed mounting (the direction already confirmed in Section 7e.1) remains key to maintaining a stable capture angle — this doesn't change just because the method switched to deep learning
+- ESP32CAM integration (see Section 7e.7): still independent of this section's work, test with the existing firmware+scripts in `261022/` once the new camera arrives
 
 ---
 
-## 7h. 第七h阶段：5点视线标定首次产出真实数据（2026-10-25）
+## 7g. Stage 7g: EllSeg Larger-Sample + Continuous-Video-Stream Re-test (2026-10-25)
 
-### 7h.1 背景
+### 7g.1 Background
 
-7g.6节确认5点标定是当前最大的技术缺口。此前`calibration.py`（第十阶段，Otsu检测器版本）从未真正运行出过数据——Otsu在无IR下0%的真实成功率，使"少于3个点有效数据"这个失败分支成为必然结果，不是bug。既然EllSeg已经验证出~86%的真实准确率，理论上第一次有了"值得拿来跑标定"的检测器。
+Section 7f's 86.7% (fair-frame) conclusion was built on 20 static crop images; Section 7f.8 explicitly recorded that this sample magnitude is not enough to support extrapolating to real-world use, and frame-to-frame stability during continuous tracking has never been validated (static images have no time continuity between them, can't answer this question). Goal of this stage: re-test with newly captured continuous video-stream data, and for the first time measure EllSeg's actual throughput on real continuous frames.
 
-### 7h.2 实现：新建`calibration_ellseg.py`，不改动原文件
+### 7g.2 Data Capture
 
-新建`pupil_detector_ellseg.py`——接口与`pupil_detector.py`完全一致（`detect_eye`/`detect_pupil`，相同返回字典结构），这样标定/注视实验脚本只需要换一行import就能切换检测器，不用重写周边的采集/记录/绘图逻辑。`detect_eye`（Haar cascade ROI步骤）原样复用，只替换瞳孔中心估计这一步。
+Wrote `capture_eye_video_noIR.py`, reusing the already-validated Haar-cascade automatic ROI-detection logic from `eye_roi.py`, switched to continuously capturing a span of continuous frames (rather than discrete single frames triggered by a key press), saved strictly named by real timestamps.
 
-基于此新建`calibration_ellseg.py`（不覆盖原`calibration.py`，与`pupil_detector_starburst.py`等历史检测器并存的惯例一致），并补上原脚本一直缺少的实时"Eye ROI"预览窗口——这正是9阶段`gaze_experiment.py`在2026-10-09早已暴露并修复过的同一个缺口，这次从一开始就加上。
+**Engineering problems during capture (honestly recorded)**:
+1. **The CascadeClassifier non-ASCII-path problem recurred**: the problem recorded in Section 1.3 of this report ("OpenCV's underlying code cannot read paths containing non-ASCII characters") recurred because the project directory was later archived as a whole into the non-ASCII path `作品集\课程` — even if the XML files and script are in the same directory, this path itself being non-ASCII still triggers the same problem. This means older scripts like `eye_roi.py` that load XML the same way would hit the same error if re-run now, it just hasn't surfaced recently because no one had re-run them. Fix: copied the XML files to the pure-ASCII path `D:\cv_cascades`, loading from there instead, no longer depending on the script's own directory.
+2. **Camera index drifted again**: the first capture accidentally called index 0 (this time it turned out to be the computer's built-in camera), re-ran `identify_camera.py` to confirm index 1 was the OV9281 this time (monochrome, close-up, clear reflection points on the pupil) — the same class of recurring drift recorded in Sections 7a.2, 7b.2, 7c.1, re-confirming the rule: "the camera index can't be assumed from the last conclusion, it must be re-verified every time"
 
-**已知代价（如实写明）**：EllSeg约7.8FPS（CPU），远低于Otsu方案可达到的60-100+FPS，3秒停留时间只能产出约18-20个样本，不是几百个。这是刻意的取舍：少量但可信的样本，好过大量但接近0%可信的样本。
+**Capture results**: two independent recording sessions (clustered/identified by filename timestamp, not one continuous recording):
+- Session A: 77 frames, crop size only about 70-80 pixels, severely blurry/distorted once upscaled to EllSeg's required 320-width, image quality noticeably worse than the rest of the data, excluded from this analysis, only recorded as having been captured
+- Session B: 265 frames, about 19 seconds, crop size about 270-414 pixels, close in magnitude to the 20 static samples used in Section 7f's testing (216-245 pixels), this is the main data for this analysis
 
-### 7h.3 第一轮测试：标定误差196px，发现"无方向信号"的异常
+### 7g.3 Code Defect Investigation: A Floating-Point Truncation Causing About 2% of Frames to Crash During Inference
 
-首次运行（5/5点有数据，Eye-ROI命中率65.1%）得到平均标定误差196.2像素（标定窗口800×600），远超可用水平。进一步检查发现比误差数字本身更严重的问题：**五个标定点的瞳孔坐标均值几乎完全重叠**（x跨度仅约36像素，y跨度仅约26像素），且**没有任何符合"上下左右"方向的规律**（例如CENTER的y值比两个TOP点的y值都大，顺序完全不对）。
+The first run of `run_ellseg_video_stability.py` (reusing `evaluate_ellseg.py`'s `preprocess_frame` preprocessing logic, consistent with Section 7f's inference script) threw a `RuntimeError: mat1 and mat2 shapes cannot be multiplied` on reaching frame 49. Investigation found: the preprocessing function recomputes the target width using `int(img.shape[1] * (op_shape[1]/img.shape[1]))`, which is mathematically always equal to `op_shape[1]` (320), but floating-point arithmetic error can cause certain input sizes to compute to 319.999..., truncated by `int()` to 319 — a 1-pixel difference. This 1-pixel difference gets amplified through the model's multiple internal downsampling layers, eventually causing a matrix-dimension mismatch crash.
 
-这与7d.3节记录过的"60帧center批次内部虹膜坐标漂移，因为头部位置未严格固定"表面相似，于是先假设是同一类问题，询问用户本次测试时摄像头/头部是否固定——**用户确认头部和手持摄像头均未移动，只有眼球转动**，排除了头动混入的可能性，说明这次是另一个原因。
+On investigation, 5 of the 265 frames (about 1.9%) precisely hit this boundary case. This bug is inherited from EllSeg's own official `evaluate_ellseg.py` code — Section 7f's 20 static-image samples happened to not hit any of them, and this round's larger 265-frame sample exposed it — which also validates the value of "re-testing with a larger sample size" in itself: it's not just that the precision number becomes more trustworthy, even the code's own boundary defects need a larger sample size to be exposed.
 
-用户又独立补测3次，Eye-ROI命中率从65.1%骤降到5.5%、4.0%、11.9%（手持摄像头长时间测试，角度/距离逐渐跑偏，推测是人为持握疲劳导致，非算法问题），但"无方向信号"的异常在这几次里全部复现，排除了单次偶然性。
+**Fix**: changed to directly using the `op_shape[1]` constant as the target width, no longer recomputing it via floating-point multiplication, eliminating this source of error at the root. After the fix, all 265 frames pass preprocessing normally.
 
-### 7h.4 根因定位：瞳孔坐标用的是裁剪框局部坐标系，不是摄像头固定画面坐标系
+### 7g.4 Inference Results and Visual Review
 
-排查发现真正原因：`calibration_ellseg.py`记录的`pupil_cx/pupil_cy`是`pupil_detector_ellseg.py`返回的**眼部裁剪框局部坐标**，而这个裁剪框是Haar cascade**每一帧重新检测**出来的，框本身会随内容小幅漂移/缩放。如果这个检测框倾向于把可见的眼部结构"居中对齐"，那么即使眼球真实转动了很大角度，裁剪框也会跟着往同方向偏移一部分，两者在"瞳孔相对裁剪框的位置"这个指标里互相抵消，标定需要的方向信号在裁剪这一步就被过滤掉了大半。
+**Real throughput, measured**: 265 frames, real wall-clock time 34.0 seconds, **measured 7.79 FPS** (covering the full pipeline: image reading, preprocessing, inference, coordinate restoration). This is almost exactly consistent with Section 7f.6's single-frame-benchmark-derived theoretical value (7.9 FPS), confirming that benchmark's estimate was accurate, and the real pipeline's additional overhead can be neglected.
 
-这是一个继承自整个项目既有架构的潜在设计缺陷（`eye_roi.py`/`pupil_detector.py`从一开始就以裁剪框局部坐标为检测输出），只是Otsu检测器从未真正产出过可用数据，这个问题之前从未被真实数据暴露过，这是EllSeg产出真实数据后第一次撞上。
+**Program-reported detection rate**: 265/265 (100%) — as with every previous test, this figure is not accepted before visual review.
 
-**修复**：在`calibration_ellseg.py`里把裁剪框的偏移量`(x, y)`加回局部坐标，换算成摄像头整个固定画面里的绝对坐标，用于逐点平均和仿射拟合；局部坐标仍保留在CSV里（新增`pupil_x_local`/`pupil_y_local`两列），供排查对比，不丢弃。同时修复了另一个独立的小问题：脚本原来用固定文件名保存CSV和图片，连续多次运行会互相覆盖——前三次的原始坐标数据因此丢失，只剩终端打印的样本计数可查。改成每次运行加时间戳区分，不再覆盖。
+**Visual review**: following the method established in Section 7f.5 (checking whether the pupil ellipse overlaps with EllSeg's own segmentation mask and the corneal reflection), sampled every 20th frame out of 265 (14 frames total), reviewing each enlarged, frame by frame:
 
-### 7h.5 修复后复测：方向信号首次确认存在
-
-修复后重新运行两次：
-
-| 指标 | 第一次(233229) | 第二次(233301) |
+| Category | Count | Note |
 |---|---|---|
-| Eye-ROI命中率 | 19.6% (54/275) | 18.3% (55/301) |
-| 平均标定误差 | 154.0px | 114.2px |
+| Visually confirmed correct | 12/14 | ellipse overlaps with the segmentation mask, center lands on the corneal reflection point |
+| Misjudged — eyelid occlusion (unfair frame) | 1 frame (#220) | eyelid almost completely covers the eyeball, the ellipse lands on the eyebrow/eyelid region, the same nature as "unfair frames" in Section 7a.4 |
+| Misjudged — clearly off-center (fair frame) | 1 frame (#40) | the eye is clearly visible, but the ellipse is skewed to one side of the segmentation mask, failing to align with the mask's main body |
 
-逐点坐标均值（摄像头固定画面坐标系）：
-
-第二次(233301)呈现出清晰、符合预期的单调规律——
 ```
-垂直方向: TOP(300.8, 307.2) < CENTER(313.4) < BOTTOM(319.7, 336.1)
-水平方向: LEFT/CENTER聚集在667-668，RIGHT组(743.4, 858.6)明显更大
+Post-review trustworthy detection rate = 12/14 ≈ 85.7%
 ```
-第一次(233229)水平方向同样呈现左右分离趋势，垂直方向偏弱（TOP_LEFT仅5个样本且标准差达26.2px，拖偏了该点均值，不是信号本身不存在）。
 
-**这是本阶段最重要的结论**：换成固定画面绝对坐标后，"眼球转动方向"这个信号第一次被真实测出来、且符合几何直觉，不再是之前那种完全无规律的噪声。标定误差也从196px降到114-154px，方向正确。
+**This figure is highly consistent with Section 7f.5's 86.7% (20 static images, fair-frame basis)** — the difference is within normal fluctuation for single-digit sample sizes. This is the most important finding of this stage: switching to a batch of independently captured new data, in a continuous video scenario, EllSeg's true accuracy still holds up, confirming Section 7f's 86.7% is not a coincidence of a small sample, and has some degree of generalizability.
 
-### 7h.6 视觉复核TOP_LEFT——确认瓶颈在Haar cascade，不在EllSeg
+### 7g.5 Frame-to-Frame Jitter Analysis — An Important Statistical-Basis Pitfall
 
-TOP_LEFT两次测试都只拿到5个样本(远低于其他点的8-16个)，但"瞳孔检出率(给定ROI)"两次都是100%。人工抽查该点的3张审计图，确认EllSeg的椭圆检测清晰、准确地套在瞳孔和反光点上——**不是EllSeg在这个角度测不准**。真正的瓶颈在更上游的Haar cascade眼部ROI检测：看向左上角这种极端眼位时，可见的眼部轮廓形状和Haar cascade训练样本里的"正视眼睛"差异较大，更容易检测失败。只要ROI检测成功、裁出了眼部图像，EllSeg就能可靠地找到瞳孔。
+Computing the Euclidean distance between adjacent frames' pupil centers as a "frame-to-frame jitter" metric, initial result: median 19.6px, mean 23.1px, max 116.4px, 90th percentile 44.2px.
 
-### 7h.7 结论与下一步
+**Found a statistical pitfall**: cross-checking each frame's real capture timestamp, found 6 instances where the real time interval between adjacent frames exceeded 0.5 seconds (the longest reaching 3.76 seconds), corresponding to the Haar cascade failing to detect the eye ROI for that stretch of time (most likely a blink or large head movement). The original "frame-to-frame jitter" calculation lumped "a real positional change spanning several seconds" together in the same distribution with "a positional change during a few dozen milliseconds of normal tracking" — this artificially inflates the maximum and high-percentile values — **the maximum value of 116.4px shouldn't be cited directly, it's mainly a byproduct of capture gaps, not the genuine instability during normal tracking**.
 
-1. **5点标定第一次产出了方向正确、量级合理的结果**（114-154px误差，800×600标定窗口），虽然还不足以支撑精确的视线映射，但证明了"EllSeg+固定画面坐标系"这条路径是可行的，此前"无方向信号"的异常已经定位并修复，不是检测器本身的问题
-2. 剩余误差的主要制约因素：每点样本量偏少（尤其TOP_LEFT这类极端角度，受限于Haar cascade ROI命中率）、手持摄像头本身不够稳定、仿射拟合对小样本异常点敏感
-3. 改进方向排序：①摄像头固定安装（消除手持抖动，这是7e.1节已确认的硬件方向，不是新增需求）；②延长单点停留时间或增加重复次数以换取更多样本，尤其是极端角度的点；③考虑用更鲁棒的眼部ROI检测方法替代Haar cascade，或扩大其在非正视角度下的检测容忍度；④小样本异常点可以用中位数代替均值、或做异常值剔除后再参与拟合，降低少数噪声样本对整点均值的影响
+After excluding displacement samples that span these 6 large gaps, the median frame-to-frame displacement during normal tracking segments barely changes (19.5px vs. the original 19.6px — the median itself is insensitive to a few outlier points), but converting to speed using the real time interval, the apparent pupil-center movement speed during normal tracking segments has a median of about 701px/s, 90th percentile about 1571px/s. This number still mixes "genuine gaze movement" with "detection noise" without being able to separate the two from a single number — a subsequent controlled experiment (e.g. fixed head + a known gaze-movement pattern) would be needed to disentangle them.
+
+**Another point needing clarification to avoid misreading**: the median real time interval between captured frames was only 26 milliseconds (about 38Hz) — this is **the camera's raw capture speed combined with the Haar cascade's detection speed**, not EllSeg's processing speed — this round's EllSeg inference was run offline in a batch after capture completed, unrelated to the capture process's timing. If this were made into a real-time closed-loop system in the future, the actual pace it could keep up with is the 7.79FPS measured in Section 7g.4 (about 128ms per frame), not the 26ms seen here. The two numbers belong to two different stages — the capture pipeline and the inference pipeline — and must not be conflated.
+
+### 7g.6 Conclusion and Next Steps
+
+1. **The consistency between 86.7% (Section 7f) → 85.7% (this section, independent new data + continuous video scenario) is EllSeg's strongest supporting evidence so far** — not a coincidence of a single sample batch
+2. **The real throughput of 7.79FPS has now been validated with real continuous data, consistent with the theoretical estimate** — this number can serve as a reliable basis for the later decision of whether GPU is needed, no need to doubt the estimate's accuracy any further
+3. **The genuine meaning of frame-to-frame jitter is still unclear** — the current data cannot distinguish "detection noise" from "genuine gaze movement," a controlled experiment with a fixed head + a known gaze-movement pattern is needed to answer this
+4. Two independent engineering problems were exposed and fixed in the process (the recurring CascadeClassifier non-ASCII-path issue, the preprocessing floating-point truncation bug), both with their specific causes and fixes recorded, for reference in troubleshooting similar problems later
+
+**Next steps** (updating the open item left in Section 7f.8):
+- Whether 7.79FPS meets the actual need requires first clarifying whether the judgment logic is "dwell-based" (relatively relaxed frame-rate requirement) or needs to capture fine saccade trajectories (high frame-rate requirement) — this product-design-level judgment hasn't been finalized yet; once it is, decide whether to invest in a GPU environment for speed testing (a CUDA-version torch is about 2.45GB, at that night's network speed, downloading would take about 4 hours)
+- 5-point gaze calibration (pupil coordinates → actual gaze direction) remains the current biggest technical gap, higher priority than continuing to expand the EllSeg sample size
+- Object-detection model (YOLO-type) selection, per existing discussion, comes after eye-gaze calibration, to avoid both lines being unfinished at once and causing rework on each other
 
 ---
 
-## 7i. 第七i阶段：眼部摄像头小型化方向 —— 复用GC0308 + EllSeg（2026-10-29，实验设计阶段，尚未执行）
+## 7h. Stage 7h: 5-Point Gaze Calibration Produces Real Data for the First Time (2026-10-25)
 
-### 7i.1 背景：OV9281物理固定遇阻
+### 7h.1 Background
 
-ESP32-CAM已完成固定（261016节装配计划里的场景摄像头一侧）。但OV9281实际固定时暴露出两个问题：①模块体积偏大，难以像ESP32-CAM那样直接贴装在镜架前端；②此前设想的"经三棱镜反射间接拍摄眼睛"方案（想借此绕开模块体积限制、把摄像头挪到不遮挡视野的角度）经尝试后确认不可行。需要说明：7e.1节已经确认过OV9281走的是**直接朝向眼睛的特写采集**，三棱镜/反射镜只服务于OLED显示那条光路——这里重新出现的"三棱镜反射"是用户为解决OV9281体积问题而另外提出的新设想，不是对7e.1已确认架构的推翻，只是这个新设想本身被验证不可行。
+Section 7g.6 confirmed 5-point calibration is the current biggest technical gap. The earlier `calibration.py` (Stage 10, the Otsu-detector version) had never actually produced real data — Otsu's true 0% success rate under no-IR conditions made the "fewer than 3 valid data points" failure branch an inevitability, not a bug. Now that EllSeg has validated out about 86% true accuracy, there is, in theory, for the first time "a detector worth running calibration with."
 
-### 7i.2 用户提出的假设：既然用深度学习算法，能否放宽摄像头选型条件
+### 7h.2 Implementation: New `calibration_ellseg.py`, Without Modifying the Original File
 
-用户提出：当前瞳孔检测已经从"需要850nm IR补光"的经典阈值方案（7a-7c节）切换为"无需主动IR、纯靠环境光"的EllSeg深度学习方案（7f-7h节），且设备本来就要求OV9281 USB直连PC（261014节已确认的硬约束，与检测算法无关）。据此推测：摄像头选型是否可以放宽到更轻量、更好固定的型号？
+Wrote a new `pupil_detector_ellseg.py` — with an interface identical to `pupil_detector.py` (`detect_eye`/`detect_pupil`, the same returned dict structure), so that the calibration/gaze-experiment scripts only need to swap one import line to switch detectors, without rewriting the surrounding capture/logging/plotting logic. `detect_eye` (the Haar-cascade ROI step) is reused as-is, only the pupil-center-estimation step is replaced.
 
-### 7i.3 核查结论：假设有两条成立，但遗漏了一条独立的硬约束
+Based on this, built `calibration_ellseg.py` (does not overwrite the original `calibration.py`, consistent with the convention of historical detectors like `pupil_detector_starburst.py` coexisting side by side), and added the real-time "Eye ROI" preview window that the original script had always lacked — this is exactly the same gap that Stage 9's `gaze_experiment.py` had already exposed and fixed back on 2026-10-09; this time it was added from the start.
 
-逐条核查：
+**Known trade-off (stated honestly)**: EllSeg runs at about 7.8FPS (CPU), far below the 60-100+ FPS the Otsu approach can reach; a 3-second dwell time can only produce about 18-20 samples, not several hundred. This is a deliberate trade-off: a small number of trustworthy samples beats a large number of samples that are close to 0% trustworthy.
 
-| 用户提出/隐含的放宽条件 | 是否成立 | 依据 |
+### 7h.3 First Round of Testing: 196px Calibration Error, an Anomaly of "No Directional Signal" Found
+
+The first run (5/5 points had data, Eye-ROI hit rate 65.1%) produced an average calibration error of 196.2 pixels (calibration window 800×600), far beyond a usable level. Further inspection found a problem more serious than the error number itself: **the mean pupil coordinates of the five calibration points almost completely overlap** (x-span only about 36 pixels, y-span only about 26 pixels), and **there is no pattern matching "up/down/left/right" at all** (e.g. CENTER's y-value is larger than both TOP points' y-values, the ordering is completely wrong).
+
+This superficially resembles the problem recorded in Section 7d.3 ("within the 60-frame center batch, the iris coordinates drift because the head position wasn't strictly fixed"), so the user was first asked whether the camera/head had been fixed during this test to check whether the same category of problem was recurring — **the user confirmed the head and the hand-held camera had not moved, only the eyeball rotated**, ruling out head-motion contamination, meaning this was a different cause.
+
+The user independently tested 3 more times, the Eye-ROI hit rate plummeting from 65.1% to 5.5%, 4.0%, 11.9% (hand-holding the camera for an extended test, angle/distance gradually drifting, presumably from hand fatigue, not an algorithm problem), but the "no directional signal" anomaly reappeared in all of these runs, ruling out it being a one-off fluke.
+
+### 7h.4 Root-Cause Localization: the Pupil Coordinates Used Were the Crop Box's Local Coordinate System, Not the Camera's Fixed Full-Frame Coordinate System
+
+Investigation found the real reason: `calibration_ellseg.py` records `pupil_cx/pupil_cy` as **local coordinates within the eye-crop box** returned by `pupil_detector_ellseg.py`, and this crop box is **re-detected fresh every single frame** by the Haar cascade — the box itself drifts/rescales slightly with content. If this detected box tends to "center" the visible eye structure, then even if the eyeball genuinely rotates by a large angle, the crop box will shift partway in the same direction, and the two cancel out in the metric of "pupil position relative to the crop box" — the directional signal calibration needs gets mostly filtered out right at the cropping step.
+
+This is a latent design flaw inherited from the project's architecture from the very start (`eye_roi.py`/`pupil_detector.py` have, from the beginning, used local crop-box coordinates as the detection output) — it's just that the Otsu detector never produced usable real data before, so this problem had never been exposed by real data until now — this is the first time EllSeg produced real data that ran into it.
+
+**Fix**: in `calibration_ellseg.py`, added the crop box's offset `(x, y)` back into the local coordinates, converting to absolute coordinates within the camera's whole fixed frame, used for per-point averaging and the affine fit; local coordinates are still kept in the CSV (two new columns added, `pupil_x_local`/`pupil_y_local`), for troubleshooting comparison, not discarded. Also fixed another independent minor problem at the same time: the script originally used a fixed filename to save the CSV and images, so running it multiple times in a row would overwrite each other — the first three runs' raw coordinate data was lost as a result, only the terminal-printed sample counts remain. Changed to add a timestamp to each run, no longer overwriting.
+
+### 7h.5 Post-Fix Re-test: Directional Signal Confirmed to Exist for the First Time
+
+After the fix, re-ran twice:
+
+| Metric | Run 1 (233229) | Run 2 (233301) |
 |---|---|---|
-| 不再要求摄像头对850nm IR敏感 | ✅ 成立 | 7f/7g节已用EllSeg在OV9281完全无主动IR补光条件下验证出65.0%~86.7%（视觉复核后，公平帧口径），深度学习分割不依赖IR拉开的对比度 |
-| USB直连PC不是换摄像头新增的负担 | ✅ 成立，但这本来就不是"换摄像头才解锁"的条件——261014节早就确认OV9281必须USB直连PC，这条约束在讨论换不换摄像头之前就已经存在 |
-| 可以不追求OV9281标称的117FPS高帧率 | ✅ 可以放宽（本次核查新确认） | 7g.4节实测真实链路瓶颈在EllSeg推理本身（CPU约7.79FPS），摄像头帧率只要不低于这个数就不构成新瓶颈 |
+| Eye-ROI hit rate | 19.6% (54/275) | 18.3% (55/301) |
+| Average calibration error | 154.0px | 114.2px |
 
-遗漏的硬约束——**近距离对焦能力**：镜架佩戴场景下摄像头到眼睛的工作距离是厘米级，这与IR、与检测算法都无关，纯粹是镜头物理设计问题。多数"轻量易固定"的通用小型摄像头模组出厂对焦距离设在数十厘米以上，贴脸近距离大概率无法合焦，这条此前的推理没有覆盖，需要在换任何新模组前单独核实。另外还有两条次要项要一并核实：**UVC协议兼容**（现有`cv2.VideoCapture(CAP_DSHOW)`链路要求摄像头是标准UVC免驱设备）、**传感器噪声水平**（见下）。
+Per-point mean coordinates (camera's fixed full-frame coordinate system):
 
-### 7i.4 决策：优先复测已有的GC0308，而非直接采购新模组
-
-GC0308是7b节已经买到手、测过的成品模组，设计定位就是"近距离眼动追踪"（3-5cm工作距离，内置IR），天然比OV9281更小更适合贴脸固定，不存在"换新模组需要重新验证对焦/UVC"这类未知风险。
-
-GC0308在7b节的失败（三轮尝试均0%真实成功率）根因是**传感器颗粒噪声**，与光照/对比度无关——这是和OV9281完全不同性质的瓶颈。当时测试用的是经典算法（Otsu阈值+圆度筛选，以及附加中值滤波），EllSeg是深度学习分割模型，对这类像素级噪声的鲁棒性此前从未验证过。这构成一个尚无数据回答的具体问题：**EllSeg能否克服GC0308的噪声瓶颈？**
-
-决定：不直接采购新摄像头，先复用7b节已采集、仍保留在磁盘上的GC0308裁剪ROI样本（`gc0308/data/gc0308_samples_cropped/`，62张，即round2/3用过的同一批"手动裁剪排除鼻梁噪点"样本），换上EllSeg重新跑一遍检测。这批样本此前经历过：round2 Otsu+裁剪（0/61，2例程序"成功"均为误报）、round3 裁剪+中值滤波（0/61，同2例误报未被修正）。如果EllSeg在同一批样本上测出明显高于0%的真实（视觉复核后）成功率，说明摄像头小型化问题可以不买新硬件、直接用现成的GC0308解决；如果仍然很低，再按7i.3节的三条核实标准去找新模组。
-
-### 7i.5 待执行脚本
-
-`课程/261029/gc0308_rerun_ellseg.py`——复用`run_ellseg_inference.py`（7f节）的EllSeg加载/推理/叠加可视化逻辑，输入源换成`gc0308/data/gc0308_samples_cropped/*.png`，输出写入`gc0308/data/gc0308_results/gc0308_pupil_detection_ellseg.csv`和`gc0308/data/gc0308_processed_ellseg/`，命名与round2/3已有的`gc0308_pupil_detection_cropped.csv`/`_denoised.csv`并列，保持该子项目一贯的"同一批样本、只换检测器"对照惯例。
-
-### 7i.6 复测结果（2026-10-30，脚本已运行+人工复核）
-
-重新拉取EllSeg代码与权重文件遇到和7e.3/7f.1同一类网络问题（直接clone/zip下载均中途被重置），最终用"分离大文件"的方法解决：代码部分走`git clone --filter=blob:limit=2m`+`sparse-checkout`（和7f.1同一手法），唯一需要的权重文件`weights/all.git_ok`改走`raw.githubusercontent.com`单文件直链下载，绕开git传输大blob时容易被重置的问题。`models/RITnet_v3.py`里`np.int(...)`的numpy兼容性修复（7f.3节记录过的同一处）在新拉取的代码里重新打了一遍。
-
-脚本`261029/gc0308_rerun_ellseg.py`对`gc0308_samples_cropped/`62张样本运行，程序原始报告62/62(100%)"检出"——和历次测试一样，这个数字未经视觉复核前不采信。
-
-**视觉复核——分两轮，第一轮抽样结论被第二轮全量复核推翻，如实记录这次自我修正过程**：
-
-第一轮先抽样22/62张（约35%），逐张检查瞳孔椭圆（红色）是否真的套在模型自身分割出的瞳孔mask（金色区域）上，判据与7f.5/7g.4一致，得到13正确/8误判（椭圆被反光点带偏）/1失败（画面无眼睛），据此估算成功率约62%（公平帧口径）。
-
-第二轮把剩余40张全部审完（凑齐62/62全量复核），结果与第一轮的抽样比例明显不一致：**40张全部视觉确认正确，没有新增一张误判或失败**。回看第一轮抽样的22张在原始文件名时间戳上**集中分布在几个特定的连续拍摄区段**（而不是均匀分布在62张的时间轴上），这些区段本身就是7b节记录过的"手持调整摄像头角度"的过渡期，误判/失败样本的时间聚集性被第一轮的抽样方式放大了——这是本报告第二次撞上"抽样比例恰好覆盖了异常聚集区段导致结论失真"这类统计陷阱（上一次是7g.5节的帧间抖动分母陷阱），处理方式同样是如实记录、补全数据后更正，不是悄悄把第一轮的62%换成后来的数字。
-
-**全量62/62复核最终结果**：
-
-| 类别 | 数量 | 说明 |
-|---|---|---|
-| 视觉确认正确 | 53/62 | 椭圆与金色瞳孔mask重合、中心落在反光高光点上 |
-| 误判——椭圆被反光点带偏（公平帧） | 8/62 | 眼部清晰可见，但红色椭圆圈住的是反光高光点而非完整瞳孔区域，与7a.4节记录过的"高光把椭圆带偏"是同一类错误模式；全部8例集中在第一轮抽样到的那几个区段内 |
-| 误判——画面无眼睛（不公平帧） | 1/62（`gc0308_crop_1791475669952`） | 该样本裁剪框内根本没有拍到眼部结构（疑似裁剪/手持偏移），模型仍勉强输出了两个无意义的小椭圆，程序端记成"成功" |
-
+Run 2 (233301) shows a clear, expected monotonic pattern —
 ```
-全帧口径（分母62） = 53/62 ≈ 85.5%
-公平帧口径（排除1张无眼睛样本，分母61） = 53/61 ≈ 86.9%
+Vertical direction: TOP(300.8, 307.2) < CENTER(313.4) < BOTTOM(319.7, 336.1)
+Horizontal direction: LEFT/CENTER cluster around 667-668, the RIGHT group (743.4, 858.6) is noticeably larger
 ```
+Run 1 (233229) also shows a left-right separation trend in the horizontal direction, with the vertical direction weaker (TOP_LEFT has only 5 samples with a standard deviation of 26.2px, skewing that point's mean — not an indication the signal itself doesn't exist).
 
-**与此前各方案横向对比**：
+**This is the most important conclusion of this stage**: after switching to the camera's fixed full-frame absolute coordinates, the "direction of eyeball rotation" signal is, for the first time, genuinely measured and matches geometric intuition — no longer the kind of completely patternless noise seen before. The calibration error also dropped from 196px to 114-154px, with the direction correct.
 
-| 方案 | 检测器 | 真实成功率（视觉复核后） |
-|---|---|---|
-| GC0308（7b节，三轮） | 经典算法（Otsu+圆度，含降噪变体） | 0%（三轮全部0%，瓶颈为传感器颗粒噪声） |
-| **GC0308（本节，62/62全量复核）** | **EllSeg** | **约86.9%（公平帧口径）** |
-| OV9281（7f/7g节） | EllSeg | 86.7%（静态20张）/ 85.7%（连续265帧） |
+### 7h.6 Visual Review of TOP_LEFT — Confirming the Bottleneck Is in Haar Cascade, Not EllSeg
 
-**结论**：假设成立，而且比第一轮抽样估计的结果更强——EllSeg对GC0308的传感器噪声鲁棒性不仅明显优于经典阈值算法（0%→86.9%），全量复核后的数字**与OV9281+EllSeg基本持平**（86.9% vs 86.7%/85.7%），不再是"明显弱于OV9281"的次优选项。摄像头小型化问题现在有扎实数据支持：**不需要买新硬件，GC0308 + EllSeg这条路线在算法层面已经验证可行，精度不输OV9281**。
+Both tests at the TOP_LEFT point got only 5 samples (far fewer than other points' 8-16), but the "pupil detection rate (given ROI)" was 100% both times. Manual spot-check of 3 audit images for this point confirmed EllSeg's ellipse detection was clean and accurate, sitting precisely on the pupil and the reflection point — **it's not that EllSeg is inaccurate at this angle**. The real bottleneck is further upstream, in the Haar-cascade eye-ROI detection: when looking toward an extreme angle like the upper-left, the visible eye-contour shape differs substantially from the "looking straight ahead" samples in the Haar cascade's training set, making detection more prone to failure. Whenever ROI detection succeeds and the eye image is cropped out, EllSeg can reliably find the pupil.
 
-需要如实标注的限制（不因为数字好看就跳过）：
-1. 8例误判全部是"反光点带偏"同一种模式，且集中在特定拍摄区段，提示这不是随机噪声，而是某种特定角度/反光条件下的系统性弱点，值得留意但暂不构成否决理由
-2. 本次仍是对**62张静态裁剪图**的复核，不是连续视频流测试——对照7f→7g的既有验证顺序（静态图验证完必须再上连续视频流确认帧间稳定性），这一步还没有做，是这条结论转化为硬件决策之前必须补的最后一步
+### 7h.7 Conclusion and Next Steps
 
-### 7i.7 下一步
-
-- ~~用GC0308实际采集一段连续视频流~~ 已完成，见7i.8——结果暴露了静态测试没覆盖到的真实问题，下一步已更新为"解决裁剪框跟不上眼球/头部相对运动"这个具体瓶颈，而不是简单重复测试
-- 物理验证仍然独立：即便算法侧数字好看，GC0308在镜架上的实际固定方式、重量、与ESP32-CAM的配平分配，仍需要按261016节的装配计划重新走一遍（这部分和检测器选型无关，不能因为算法测通了就跳过）
-
-### 7i.8 连续视频流复测（2026-10-30，脚本已运行+人工复核）——静态结果没能直接外推
-
-脚本：`261029/gc0308_capture_video.py`（开场一次性手动裁剪框，随后连续自动采集，不逐帧跑Haar cascade重新定位——原因见该脚本docstring：GC0308设计上是近距离固定工作距离，之前认为一次裁剪对整段录制仍然有效）+ `261029/gc0308_rerun_ellseg_video.py`（复用`run_ellseg_video_stability.py`的EllSeg推理+抖动分析逻辑）。
-
-**采集结果**：531帧，真实耗时18.2秒（≈29FPS采集速度，与此前GC0308实测的29-31FPS一致，见7b.3节），帧间时间间隔中位数32ms、最大128ms，**没有出现7g.5节那种"间隔超过0.5秒"的采集空档**——这批帧时间上是干净连续的，不存在"长间隔污染统计"的那类陷阱。
-
-**EllSeg推理**：531帧真实墙钟耗时89.5秒，**实测吞吐5.94 FPS**，低于OV9281同一模型测出的7.79FPS（7g.4节）。本次GC0308裁剪尺寸390×299，比OV9281静态测试常见的216-350px裁剪略大，更大尺寸的LANCZOS4缩放+推理耗时更长是一个合理的解释方向，但没有做控制变量的对比实验，这里只如实记录现象，不把"裁剪尺寸更大"当作确定结论。
-
-程序原始报告531/531(100%)检出——不采信。
-
-**视觉复核**：按每20帧抽样（27张）的惯例抽查，这次发现的问题比静态图测试严重得多，而且能定位出**两种不同性质的失败**（不是同一个问题）：
-
-| 类别 | 数量/27 | 说明 |
-|---|---|---|
-| 视觉确认正确 | 9 | 瞳孔椭圆/分割mask准确 |
-| **裁剪框完全丢失眼睛**（如#40、#100，已调出原始帧核实：画面里只有额头/眉骨皮肤，没有任何眼部结构） | 4 | **不是EllSeg的检测失败，是采集方法的问题**——这次用的是"开场选一次裁剪框，整段录制复用同一个框"，但20秒内头部/摄像头的相对位置会漂移，眼睛移出了这个固定框的范围 |
-| 眼睛在裁剪框边缘，部分可见（如#180，原始帧核实：眼睑和瞳孔只露出一小部分在画面最下方） | 8 | 介于"完全丢失"和"正常可见"之间，EllSeg在这类画面上的表现本身也不稳定 |
-| **眼睛清晰可见但EllSeg仍然检测错误**（如#420、#460，已调出原始帧核实：眼部位置清晰、曝光正常，但分割mask破碎、红色椭圆没有套住瞳孔） | 6 | **这才是真正意义上"EllSeg在连续视频上表现变差"的证据**，和上面"裁剪框丢失眼睛"是完全不同性质的问题，不能混在一起算成一个"失败率" |
-
-```
-严格口径（只认"视觉确认正确"）= 9/27 ≈ 33.3%
-排除"裁剪框完全丢失眼睛"的4帧后（这4帧根本不构成对EllSeg的有效测试）= 9/23 ≈ 39.1%
-```
-
-**结论——静态图86.9%不能直接外推到连续自然使用场景，但原因主要不是EllSeg本身变差了**：
-
-1. 27个抽样里将近一半（4完全丢失+8部分可见=12/27≈44%）的"失败"根源是**裁剪框跟不上真实使用中头部/摄像头的相对漂移**，这是`gc0308_capture_video.py`"开场裁剪一次、全程复用"这个设计假设本身的问题，不是EllSeg的检测能力问题——这个假设在7b节"GC0308是固定工作距离"的前提下成立，但没有考虑到即使工作距离不变，佩戴/手持时头部和眼球的相对位置仍然会在20秒内明显漂移
-2. 剩下6/27（≈22%）是"眼睛清晰可见但EllSeg仍判断错误"，这部分才是真正该归因到检测器本身的失败率，比静态图的误判比例（8/62≈13%）更高，值得留意但样本量太小（27张抽样里只有6个这类样本），不足以下精确结论
-3. **这组数据没有推翻7i.6节"GC0308+EllSeg可行"的判断，但否定了"直接照搬静态图的86.9%去做硬件决策"这个想法**——下一步要解决的不是"换更好的检测器"，而是"裁剪/跟踪方式要能适应真实佩戴场景下的相对运动"，这和261016节"固定安装消除手持抖动"的方向是一致的，只是现在有了连续视频的数据支撑这个判断，不再只是推测
-
-### 7i.9 下一步
-
-- **裁剪策略需要改**：不能再用"开场选一次框、全程复用"，需要换成能跟着眼睛走的方案——要么恢复成每帧跑一次轻量ROI检测（类似OV9281路线的Haar cascade，但GC0308这边原本没加是因为7b.1节假设近距离工作不需要），要么把裁剪框开得比眼睛大一截留出漂移余量，用更大的框喂给EllSeg（EllSeg本身在更大范围的输入上表现如何还没测过，这本身也是待验证的点）
-- 如果换成"每帧更大裁剪框"的方案，需要重新测一遍，看EllSeg在"眼睛只占画面一部分"而非"眼睛填满画面"的输入下精度是否下降——这是全新的变量，不能假设和7i.6节的86.9%可比
-- 物理固定仍然是治本的方向：真的把GC0308刚性固定在镜架上（而不是这次测试里头部/摄像头相对自由的佩戴/手持状态）之后，"裁剪框跟不上漂移"这个问题的严重程度大概率会显著下降，值得在物理装配（261016节）完成后重新跑一次本节的对比实验，而不是现在就断定这条路线需要大改——**已完成，见7i.10**
-
-### 7i.10 固定安装后复测（2026-10-30，验证了7i.9节的假设）
-
-GC0308已按261016节的装配计划刚性固定到镜架上（不再是7i.8节那次测试时头部/摄像头相对自由的佩戴/手持状态）。重新用`gc0308_capture_video.py`录了一段同样时长(20秒)的连续视频，验证"固定安装能不能解决7i.8节发现的裁剪漂移问题"。
-
-**一个工程教训，如实记录**：`gc0308_capture_video.py`不会清空`data/gc0308_video/`里的旧文件，第一次重跑分析脚本时，新录的501帧和7i.8节那531帧旧数据混在同一个文件夹里，被`gc0308_rerun_ellseg_video.py`当成同一条连续时间线直接合并分析（1032帧，帧间位移数字和旧数据一模一样，说明脚本读到的其实还是旧文件）。排查后确认：两次录制在真实时间戳上有明显gap（间隔几小时），据此给分析脚本加了按时间戳gap自动切分session的逻辑（和7g.2节处理OV9281两个session的方法一致，只是这次是先出bug才补上这个本该一开始就有的防护），只分析最新的那一个session。这类"工具不清空旧数据导致新旧结果悄悄混在一起"的坑，以后任何复用`gc0308_capture_video.py`的场景都要注意。
-
-**帧间抖动对比（同一套统计口径，直接可比）**：
-
-| 指标 | 固定前（7i.8节，手持/松散佩戴，531帧） | 固定后（本节，501帧） |
-|---|---|---|
-| 中位数位移 | 10.3px | **2.3px** |
-| 均值位移 | 27.2px | **5.9px** |
-| 90分位位移 | 85.7px | **10.8px** |
-| 最大位移 | 190.3px | 93.5px |
-
-四项指标全面下降，中位数和90分位都降到约四分之一，方向和幅度都支持7i.9节"固定安装能缓解裁剪漂移"这个判断。
-
-**视觉复核**：按每20帧抽样（26张）检查，结果：
-
-| 类别 | 数量/26 | 说明 |
-|---|---|---|
-| 视觉确认正确 | 24 | 椭圆与分割mask重合，裁剪框稳定框住眼部，没有再出现7i.8节那种"裁剪框完全丢失眼睛"的情况 |
-| 误判——不公平帧（真实眨眼） | 2（#180、#320） | 已调出原始帧核实：两张都是眼睑完全/接近闭合的真实眨眼瞬间，不是摄像头漂移，也不是检测器误判——这是任何眼动追踪方案都会遇到的正常现象，不是GC0308或EllSeg的缺陷 |
-
-```
-全帧口径（分母26） = 24/26 ≈ 92.3%
-公平帧口径（排除2张眨眼帧，分母24） = 24/24 = 100%
-```
-
-**结论**：7i.9节的假设成立——"裁剪框跟不上真实使用中头部/摄像头相对漂移"这个问题，在GC0308刚性固定到镜架后基本消失，剩下的2个"失败"样本经核实都是正常眨眼，不是方案缺陷。固定安装后的连续视频表现（公平帧100%）不仅远好于固定前的手持测试（33%），也比静态裁剪图复测的86.9%更好——静态图测试用的样本本身可能偏向"容易检测"的角度/状态，连续视频在固定安装后反而给出了更干净的结果。
-
-**这条技术路线到此已经验证完整**：GC0308（近距离设计，物理上比OV9281更小更好固定）+ EllSeg（无需IR、无需等光学对焦适配）+ 刚性固定安装，在静态图和连续视频两种测试方式下都给出了和/优于OV9281+EllSeg基准的真实准确率。摄像头小型化这个最初卡住原型推进的问题，现在有完整的实验数据链支撑"可以用GC0308替代OV9281"这个结论。
-
-### 7i.11 下一步
-
-- 把GC0308正式确立为眼动摄像头路线（取代7i节开头提到的OV9281固定遇阻问题），更新`261010/眼镜式双摄融合眼动仪路线图.md`里涉及摄像头选型的部分，避免后续讨论里反复纠结"换不换摄像头"这个已经有数据支撑的问题
-- 称重+试戴：GC0308、ESP32-CAM、OLED三件都固定上镜架后，按261016节的配平方案做一次实际称重，确认左右重量分配是否可接受
-- 场景摄像头(ESP32-CAM)→OLED的几何映射标定仍然独立于本节结论，还没有做（261016节"待解决"里记录过，需要的是外部参照相机拍OLED经镜片反射后在真实世界的落点，这部分工作和瞳孔检测路线选型完全脱钩）
+1. **5-point calibration has, for the first time, produced a directionally correct, reasonably-scaled result** (114-154px error, 800×600 calibration window) — still not enough to support a precise gaze mapping, but it proves the "EllSeg + fixed full-frame coordinate system" path is viable; the earlier "no directional signal" anomaly has been localized and fixed, it's not a problem with the detector itself
+2. The main remaining constraints on the error: too few samples per point (especially at extreme angles like TOP_LEFT, limited by the Haar cascade's ROI hit rate there), the hand-held camera itself not being stable enough, and the affine fit being sensitive to small-sample outliers
+3. Order of improvement directions: ① fixed camera mounting (eliminating hand-held shake, the hardware direction already confirmed in Section 7e.1, not a new requirement); ② extending the per-point dwell time or adding repetitions to get more samples, especially at extreme angles; ③ consider replacing Haar cascade with a more robust eye-ROI detection method, or widening its tolerance at non-frontal angles; ④ for small-sample outlier points, use the median instead of the mean, or do outlier removal before fitting, to reduce the influence of a few noisy samples on that point's overall average
 
 ---
 
-## 7j. 第七j阶段：Phase1全链路首次用真实数据跑通（2026-10-30～2026-11-04）
+## 7i. Stage 7i: Eye-Camera Miniaturization Direction — Reusing GC0308 + EllSeg (2026-10-29, Experiment Design Stage, Not Yet Executed)
 
-对应`261014/ESP32CAM+OV9281 双摄眼动仪 · PC 直控方案可行性分析.md`第八节"分阶段路线"的**Phase1**——PC全接管、先把几何标定和遮罩视觉效果调对，不碰FOMO。代码在独立文件夹`261030/`，与本报告路径区分（同261022/261029的先例），详细设计见`261030/README.md`。
+### 7i.1 Background: OV9281 Physical Mounting Hit a Wall
 
-### 7j.1 新增标定：GC0308直接对OLED坐标系标定
+The ESP32-CAM has already been fixed-mounted (the scene-camera side, per the assembly plan in Section 261016). But actually mounting the OV9281 exposed two problems: ① the module is somewhat bulky, difficult to mount flush at the front of the frame the way the ESP32-CAM was; ② the previously conceived "shoot the eye indirectly via a prism reflection" approach (meant to sidestep the module's bulk by relocating the camera to an angle that doesn't block the field of view) was confirmed infeasible after attempting it. Note: Section 7e.1 already confirmed OV9281 takes **a direct close-up capture aimed at the eye**, the prism/reflective mirror only serves the OLED-display light path — the "prism reflection" reappearing here is a new idea the user separately proposed to solve OV9281's bulk problem, it is not overturning the already-confirmed architecture in 7e.1, it's just that this new idea itself has been validated infeasible.
 
-`261004/calibration_ellseg.py`标定的是"瞳孔坐标→任意800×600窗口"，且用Haar cascade两级检测（给OV9281那种"眼睛占画面一小部分"的场景设计）。GC0308是近距离特写，不需要也不适合Haar cascade（参照7i节GC0308的既有做法：一次性手动裁剪框，全程复用）。为此新建`261030/calibration_gc0308_oled.py`：只调用`pupil_detector_ellseg.py`的`detect_pupil()`（不调用`detect_eye()`），标定目标直接是OLED真实像素坐标(128×64)，省掉"标定到任意空间再换算成OLED坐标"这一步换算。标定结果（仿射矩阵+裁剪框+camera index）存成JSON，供下游脚本直接加载复用，不用每次重新标定——这是本报告历次标定脚本里第一次把结果持久化成可复用文件，之前（`calibration.py`/`calibration_ellseg.py`）都只是打印/画图，不能被别的脚本直接消费。
+### 7i.2 The User's Hypothesis: Given a Deep-Learning Algorithm Is Now Used, Can the Camera Selection Constraints Be Relaxed
 
-**两次标定结果**：
+The user proposed: now that pupil detection has already switched from the classical threshold approach that "needed 850nm IR fill" (Sections 7a-7c) to EllSeg's deep-learning approach that "needs no active IR, works on ambient light alone" (Sections 7f-7h), and the device already requires OV9281 to be USB-direct to the PC (an already-confirmed hard constraint from Section 261014, unrelated to the detection algorithm), could the camera selection therefore be relaxed to a lighter, easier-to-mount model?
 
-| 标定次数 | 平均误差(OLED像素，总宽128/总高64) | 各点误差范围 |
+### 7i.3 Verification Conclusion: Two of the Hypothesis's Premises Hold, But One Independent Hard Constraint Was Missed
+
+Checking each premise in turn:
+
+| Relaxed condition proposed/implied by the user | Does it hold | Basis |
 |---|---|---|
-| 第一次 | 18.6px | 8.4~37.2px |
-| 第二次（最终采用） | 12.8px | 4.1~22.8px |
+| No longer requires the camera to be sensitive to 850nm IR | ✅ Holds | Sections 7f/7g already validated EllSeg achieving 65.0%~86.7% (post-review, fair-frame basis) on OV9281 with absolutely no active IR fill — a deep-learning segmentation model doesn't depend on the contrast IR pulls open |
+| USB-direct to the PC isn't a new burden from swapping cameras | ✅ Holds, but this was never a condition "only unlocked by swapping cameras" to begin with — Section 261014 already confirmed OV9281 must be USB-direct to the PC, this constraint already existed before the camera-swap discussion even started |
+| Can give up chasing OV9281's rated 117FPS high frame rate | ✅ Can be relaxed (newly confirmed by this check) | Section 7g.4 measured that the real pipeline's bottleneck is EllSeg inference itself (CPU about 7.79FPS); the camera's frame rate just needs to not fall below this number to avoid becoming a new bottleneck |
 
-两次手动框选的裁剪框略有差异（x=146→163, w=345→377），标定结果随之有波动，说明裁剪框的细微差别会影响最终精度，这是预期之内的、暂不深究的变量。12.8px相当于OLED宽度的约10%，和7h节OV9281+800×600窗口测出的114-154px（约14-19%占比）量级相近甚至略好。抽查了几张标注图（含误差最大的TOP_RIGHT点），椭圆标记确实落在一块边界清晰的小圆形暗区上，不是反光点/睫毛误判，检出可信。
+The missed hard constraint — **close-range focusing capability**: in the glasses-wearing scenario, the camera-to-eye working distance is centimeter-scale, which is unrelated to IR, unrelated to the detection algorithm, a purely physical lens-design problem. Most general-purpose "lightweight, easy-to-mount" small camera modules ship with a focus distance set to tens of centimeters or more, and are very likely unable to focus at close range against the face — this wasn't covered by the earlier reasoning, and needs to be checked independently before adopting any new module. Two other secondary items also need checking at the same time: **UVC protocol compatibility** (the existing `cv2.VideoCapture(CAP_DSHOW)` pipeline requires the camera to be a standard UVC plug-and-play device), and **sensor noise level** (see below).
 
-### 7j.2 新增融合脚本：真实注视点替换WASD模拟
+### 7i.4 Decision: Prioritize Re-testing the Already-Owned GC0308, Rather Than Directly Purchasing a New Module
 
-`261022/fusion_poc.py`已验证"状态跳变才发/mask请求"这套防抖状态机+HTTP时序本身没问题，但注视点是WASD键盘模拟、干扰物位置是写死矩形，两处都明确标注过是占位。本阶段新建`261030/phase1_fusion.py`，只替换第一处：加载`calibration_gc0308_oled.py`产出的JSON，实时读GC0308→EllSeg→仿射矩阵→得到OLED坐标系下的真实注视点，核心的防抖状态机逻辑原样复用，没有改动。干扰物矩形**仍然是写死的占位**（场景坐标系下定义，叠加显示在真实`/capture`画面上，再线性缩放到OLED坐标——不是正式的场景↔OLED几何标定，那个要等光学透镜装上才做），这是Phase1范围内明确不做真实物体检测，不是本次遗漏。
+GC0308 is a finished module already purchased and tested in Section 7b, with a design positioning of exactly "close-range eye tracking" (3-5cm working distance, built-in IR), naturally smaller and better suited to mounting flush against the face than OV9281, and it doesn't carry the unknown-risk of "a new module needs re-validating focus/UVC" that comes with switching to something new.
 
-### 7j.3 联调过程中的网络故障排查（如实记录完整过程，不只记录结果）
+GC0308's failure in Section 7b (all three attempts 0% true success rate) had a root cause of **sensor granular noise**, unrelated to lighting/contrast — a bottleneck of a completely different nature than OV9281's. The testing at the time used a classical algorithm (Otsu threshold + circularity filtering, plus an additional median-filter variant); EllSeg is a deep-learning segmentation model, and its robustness to this kind of pixel-level noise has never been validated before. This constitutes a specific question with no data to answer yet: **can EllSeg overcome GC0308's noise bottleneck?**
 
-首次运行暴露出`/mask`请求超时，排查过程经历了三轮假设，最终确认都不是真正原因，只有第三轮找对：
+Decision: don't directly purchase a new camera — first reuse the GC0308 crop ROI samples already captured in Section 7b and still on disk (`gc0308/data/gc0308_samples_cropped/`, 62 images, the same batch used in rounds 2/3, the "manually cropped to exclude nose-bridge noise" samples), and re-run detection on them with EllSeg. This batch of samples had previously gone through: round 2, Otsu+cropping (0/61, the 2 program "successes" both false positives); round 3, cropping+median filter (0/61, the same 2 false positives not corrected). If EllSeg measures a markedly-above-0% true (post-review) success rate on this exact same batch of samples, it means the camera-miniaturization problem can be solved without buying new hardware, just by using the existing GC0308; if it's still very low, then proceed per the three verification criteria in Section 7i.3 to look for a new module.
 
-1. **第一轮假设**：ESP32单线程`WebServer`处理`/capture`时把`/mask`请求"挡住排队"，3秒内等不到响应判超时，但指令其实送达了（因为当时用户反馈OLED确实有微弱反应）。应对：把客户端超时从3秒延长到10秒，同时把测试用占位矩形从40×19px放大到72×37px方便肉眼确认。
-2. **第二轮复测**：延长超时后，`/mask`请求反而**100%在10秒整超时，OLED完全没反应**——这直接推翻了第一轮"慢但成功"的假设，说明请求根本没被处理，不是排队慢。转而怀疑ESP32固件卡死，或物理固定到镜架后天线被遮挡导致WiFi信号变差（`261016_固定与供电计划.md`明确提醒过这个风险）。
-3. **第三轮用`ping`分层排查**：请求用户直接`ping`ESP32的IP，这是比HTTP更底层的连通性测试，能把"WiFi链路问题"和"ESP32应用层卡死"分开判断。Ping显示**4/4全部成功**——证明WiFi链路本身没问题，推翻了"天线被遮挡"的猜测。进一步追问后确认：**真正原因是用户电脑自己的WiFi在那几分钟内发生了一次短暂自动断线重连**，和ESP32、天线、固件都无关，是最简单、也是最容易被忽略的一种可能性，前两轮排查都想复杂了。网络恢复后重新测试，`/mask`请求稳定在0.0~0.1秒内成功返回。
+### 7i.5 Pending Script
 
-**这次排错的方法论教训**：遇到"看起来复杂"的故障（超时、时快时慢），不要跳过"最基础的连通性"这一层直接去猜应用层逻辑或硬件问题——`ping`这种最简单的工具，分层排查的效率比直接去看代码/怀疑硬件更高，这次足足绕了两轮假设才用上。
+`261029/gc0308_rerun_ellseg.py` — reuses the EllSeg loading/inference/overlay-visualization logic from `run_ellseg_inference.py` (Section 7f), with the input source switched to `gc0308/data/gc0308_samples_cropped/*.png`, output written to `gc0308/data/gc0308_results/gc0308_pupil_detection_ellseg.csv` and `gc0308/data/gc0308_processed_ellseg/`, named alongside the existing round-2/3 `gc0308_pupil_detection_cropped.csv`/`_denoised.csv`, keeping the established convention for this sub-project of "same batch of samples, only the detector is swapped" for comparison.
 
-### 7j.4 最终结果：Phase1链路首次全程用真实数据跑通
+### 7i.6 Re-test Results (2026-10-30, Script Run + Manual Review Complete)
 
-真实GC0308瞳孔检测 → EllSeg → 标定矩阵 → OLED坐标系真实注视点 → 真实HTTP `/mask`请求 → 真实OLED响应，全链路首次打通，不再有任何一环是模拟/占位（干扰物检测本身除外，这是Phase1范围内明确排除的部分）。
+Re-pulling the EllSeg code and weight files hit the same class of network problem as 7e.3/7f.1 (a direct clone/zip download both got reset mid-transfer), finally resolved with the "separate the large files" method: the code part went through `git clone --filter=blob:limit=2m` + `sparse-checkout` (the same technique as 7f.1), while the one needed weight file, `weights/all.git_ok`, went through a direct single-file link via `raw.githubusercontent.com`, sidestepping git's tendency to get reset when transferring large blobs. The numpy-compatibility fix in `models/RITnet_v3.py` for `np.int(...)` (the same spot recorded in Section 7f.3) was re-applied in this newly pulled copy of the code.
 
-运行中观察到注视点进入/离开占位矩形的状态切换非常频繁（同一秒内多次往返），对应OLED上快速闪烁而非"稳定点亮"。排查这不是bug——用户确认是因为佩戴时本身在持续扫视多个设备（真实使用场景的自然眼动模式），叠加12.8px标定误差和EllSeg检测噪声，注视点在矩形边界附近本就会频繁穿越。用户确认当前表现可以接受，暂不加防抖/去抖逻辑，如果后续实际体验下来觉得闪烁影响使用，再回来加"连续N帧稳定在同一侧才切换状态"这类去抖机制。
+The script `261029/gc0308_rerun_ellseg.py` ran on the 62 samples in `gc0308_samples_cropped/`, the program's raw report was 62/62(100%) "detected" — as with every previous test, this figure is not accepted before visual review.
 
-### 7j.5 下一步
+**Visual review — done in two rounds, the first round's sampled conclusion was overturned by the second round's full review, the self-correction process recorded honestly**:
 
-- 场景摄像头→OLED的正式几何标定（现在用线性缩放占位）：等光学透镜装上后再做，独立于本节结论
-- 真实物体检测/FOMO接入（Phase1明确排除，Phase2的范围）
-- 如果后续体验下来注视点闪烁影响使用，再评估是否加去抖逻辑（当前判断是不需要，7j.4已记录原因）
-- `261004/gc0308/identify_gc0308.py`在本阶段修复了一个之前没人发现的bug：该脚本直接用`cv2.imwrite()`写文件，在本项目的中文路径(`作品集/课程`)下会静默失败，且原代码没检查返回值，一直打印"saved..."掩盖了这个问题，直到这次用户去看文件才发现没真正写出来。已改成项目统一的`imwrite_unicode()`模式修复。
+Round 1 first sampled 22/62 images (about 35%), checking frame by frame whether the pupil ellipse (red) genuinely sits on the model's own segmented pupil mask (gold region), per the same criterion as 7f.5/7g.4, getting 13 correct/8 misjudged (ellipse pulled off by a reflection point)/1 failed (no eye in the frame), estimating a success rate of about 62% (fair-frame basis) from this.
+
+Round 2 reviewed the remaining 40 images in full (completing the full 62/62 review), and the result was noticeably inconsistent with Round 1's sampled proportion: **all 40 were visually confirmed correct, with no additional misjudgments or failures**. Looking back at Round 1's 22 sampled images' original filename timestamps, they were **concentrated in a few specific continuous-capture segments** (rather than evenly distributed across the full 62-image timeline) — these segments were themselves the "hand-adjusting the camera angle" transition periods recorded back in Section 7b — the time-clustering of misjudged/failed samples was amplified by Round 1's sampling method. This is the second time this report has run into this class of statistical pitfall ("a sampling proportion happening to cover an anomaly-clustered segment, distorting the conclusion") — the first time was Section 7g.5's frame-jitter-denominator pitfall — the handling is the same: record it honestly, complete the data, and correct it — not quietly swapping Round 1's 62% for the later figure.
+
+**Full 62/62 review final result**:
+
+| Category | Count | Note |
+|---|---|---|
+| Visually confirmed correct | 53/62 | ellipse overlaps with the gold pupil mask, center lands on the reflection highlight point |
+| Misjudged — ellipse pulled off by a reflection point (fair frame) | 8/62 | the eye is clearly visible, but the red ellipse circles the reflection highlight rather than the complete pupil region — the same class of error recorded in Section 7a.4 as "highlights pulling the ellipse off"; all 8 cases are concentrated within the segments sampled in Round 1 |
+| Misjudged — no eye in the frame (unfair frame) | 1/62 (`gc0308_crop_1791475669952`) | this sample's crop box didn't capture any eye structure at all (suspected crop/hand-held offset), the model still forced out two meaningless small ellipses, which the program counted as "success" |
+
+```
+Whole-frame basis (denominator 62) = 53/62 ≈ 85.5%
+Fair-frame basis (excluding the 1 no-eye sample, denominator 61) = 53/61 ≈ 86.9%
+```
+
+**Horizontal comparison with previous approaches**:
+
+| Approach | Detector | True success rate (post-review) |
+|---|---|---|
+| GC0308 (Section 7b, three rounds) | Classical algorithm (Otsu+circularity, including a denoising variant) | 0% (all three rounds 0%, bottleneck was sensor granular noise) |
+| **GC0308 (this section, full 62/62 review)** | **EllSeg** | **about 86.9% (fair-frame basis)** |
+| OV9281 (Sections 7f/7g) | EllSeg | 86.7% (20 static images) / 85.7% (continuous 265 frames) |
+
+**Conclusion**: the hypothesis holds, and more strongly than Round 1's sampled estimate suggested — EllSeg's robustness to GC0308's sensor noise is not only clearly superior to the classical threshold algorithm (0%→86.9%), after the full review the number **is essentially on par with OV9281+EllSeg** (86.9% vs. 86.7%/85.7%), no longer a "clearly inferior to OV9281" fallback option. The camera-miniaturization problem now has solid data behind it: **no new hardware purchase needed, the GC0308 + EllSeg route has already been validated feasible at the algorithm level, with precision on par with OV9281**.
+
+Limitations that must be honestly noted (not skipped just because the numbers look good):
+1. All 8 misjudgments are the exact same "pulled off by a reflection point" failure mode, and are concentrated in specific capture segments, suggesting this isn't random noise but some kind of systematic weakness under a specific angle/reflection condition — worth watching but not yet a reason to reject the approach
+2. This round is still a review of **62 static crop images**, not a continuous-video-stream test — compared to the already-established validation order of 7f→7g (static images validated first, then continuous video stream confirms frame-to-frame stability), this step hasn't been done yet, and is the last step needed before this conclusion can be turned into a hardware decision
+
+### 7i.7 Next Steps
+
+- ~~Actually capture a span of continuous video with GC0308~~ Already done, see 7i.8 — the result exposed a real problem the static test didn't cover, the next step has been updated to "solve the crop box not keeping up with eye/head relative motion" as a specific bottleneck, rather than simply repeating the test
+- Physical validation remains independent: even if the algorithm-side numbers look good, GC0308's actual mounting method on the frame, its weight, and its balance allocation with the ESP32-CAM still need to go through the assembly plan in Section 261016 again — this part is unrelated to detector selection, and can't be skipped just because the algorithm has been validated
+
+### 7i.8 Continuous Video-Stream Re-test (2026-10-30, Script Run + Manual Review Complete) — the Static Result Could Not Be Directly Extrapolated
+
+Scripts: `261029/gc0308_capture_video.py` (manually cropping the box once at the start, then continuously auto-capturing, without re-running Haar cascade frame by frame — reason given in the script's docstring: GC0308 is designed for a fixed close-range working distance, previously assumed one crop would remain valid for the whole recording) + `261029/gc0308_rerun_ellseg_video.py` (reusing the EllSeg inference + jitter-analysis logic from `run_ellseg_video_stability.py`).
+
+**Capture result**: 531 frames, real elapsed time 18.2 seconds (≈29FPS capture speed, consistent with GC0308's previously measured 29-31FPS, see Section 7b.3), median frame interval 32ms, max 128ms, **no occurrence of the kind of "interval exceeding 0.5 seconds" capture gap seen in Section 7g.5** — this batch of frames is cleanly continuous in time, with no risk of that class of pitfall contaminating the statistics.
+
+**EllSeg inference**: 531 frames, real wall-clock time 89.5 seconds, **measured throughput 5.94 FPS**, lower than the 7.79FPS the same model measured on OV9281 (Section 7g.4). This round's GC0308 crop size is 390×299, somewhat larger than the 216-350px crops common in OV9281's static tests, a larger-size LANCZOS4 resize + inference taking longer is a reasonable direction, but no controlled-variable comparison experiment was done — this is recorded here only as an observed phenomenon, not treated as a confirmed conclusion of "the crop size being larger" being the cause.
+
+The program's raw report was 531/531(100%) detected — not accepted.
+
+**Visual review**: following the convention of sampling every 20th frame (27 images), this round found problems substantially more serious than in the static-image test, and could be localized into **two failure modes of different nature** (not a single problem):
+
+| Category | Count/27 | Note |
+|---|---|---|
+| Visually confirmed correct | 9 | pupil ellipse/segmentation mask accurate |
+| **Crop box completely lost the eye** (e.g. #40, #100, cross-checked against the original frame: the frame only shows forehead/brow skin, no eye structure at all) | 4 | **not an EllSeg detection failure, it's a capture-method problem** — this round used "pick the crop box once at the start, reuse the same box for the whole recording," but within a 20-second span the head/camera's relative position can drift, moving the eye out of this fixed box's range |
+| Eye at the crop box's edge, partially visible (e.g. #180, cross-checked against the original frame: only a sliver of the eyelid and pupil shows at the very bottom of the frame) | 8 | somewhere between "completely lost" and "normally visible," EllSeg's performance on this class of frame is itself unstable |
+| **Eye clearly visible but EllSeg still detects it wrong** (e.g. #420, #460, cross-checked against the original frame: the eye's position is clear, exposure is normal, but the segmentation mask is fragmented, the red ellipse doesn't sit on the pupil) | 6 | **this is the only genuine evidence of "EllSeg performing worse on continuous video"**, a problem of a completely different nature from "crop box lost the eye" above, must not be lumped into one "failure rate" |
+
+```
+Strict basis (only counting "visually confirmed correct") = 9/27 ≈ 33.3%
+Excluding the 4 "crop box completely lost the eye" frames (these 4 don't constitute a valid test of EllSeg at all) = 9/23 ≈ 39.1%
+```
+
+**Conclusion — the static image's 86.9% cannot be directly extrapolated to continuous natural use, but the cause is mostly not EllSeg itself getting worse**:
+
+1. Nearly half of the 27 sampled frames' "failures" (4 completely lost + 8 partially visible = 12/27 ≈ 44%) are rooted in **the crop box not keeping up with the real head/camera relative drift during actual use** — this is a problem with the design assumption behind `gc0308_capture_video.py`'s "crop once at the start, reuse for the whole session," not a problem with EllSeg's detection capability — this assumption held under Section 7b's premise of "GC0308 has a fixed working distance," but didn't account for the fact that even with the working distance unchanged, the relative position of the head and eyeball can still drift noticeably over 20 seconds while worn/hand-held
+2. The remaining 6/27 (≈22%) are "eye clearly visible but EllSeg still judges it wrong" — this is the part that should genuinely be attributed to the detector itself, a higher failure proportion than the static image's misjudgment proportion (8/62≈13%), worth watching but the sample size (only 6 out of 27 sampled) is too small to draw a precise conclusion from
+3. **This batch of data does not overturn Section 7i.6's judgment that "GC0308+EllSeg is viable," but it does invalidate the idea of "directly carrying over the static image's 86.9% to make a hardware decision"** — the next step to solve isn't "switch to a better detector," it's "the cropping/tracking method needs to adapt to real relative motion in actual wearing scenarios," which is consistent with the direction in Section 261016 of "fixed mounting eliminates hand-held shake," just that there's now continuous-video data to support this judgment, it's no longer just a guess
+
+### 7i.9 Next Steps
+
+- **The cropping strategy needs to change**: can no longer use "pick a box once at the start, reuse for the whole session," needs to switch to an approach that tracks the eye — either restore running a lightweight ROI detection every frame (similar to the OV9281 route's Haar cascade, which GC0308's side originally skipped because Section 7b.1 assumed close-range work didn't need it), or open the crop box somewhat larger than the eye to leave margin for drift, feeding the larger box to EllSeg (how EllSeg performs on a larger-range input where "the eye only occupies part of the frame" hasn't been tested, this itself is also a point to validate)
+- If switching to a "larger crop box per frame" approach, needs re-testing to see whether EllSeg's precision drops when "the eye only occupies part of the frame" rather than "the eye fills the frame" — this is an entirely new variable, can't be assumed comparable to Section 7i.6's 86.9%
+- Physical fixed mounting remains the fundamental-fix direction: once GC0308 is genuinely rigidly fixed to the frame (rather than this test's relatively free head/camera hand-held/worn state), the severity of "crop box can't keep up with drift" will very likely drop substantially — worth re-running this section's comparison experiment once the physical assembly (Section 261016) is complete, rather than concluding now that this route needs a major overhaul — **already done, see 7i.10**
+
+### 7i.10 Re-test After Fixed Mounting (2026-10-30, Validates the Hypothesis in 7i.9)
+
+GC0308 has been rigidly fixed to the frame per the assembly plan in Section 261016 (no longer the relatively free head/camera hand-held/worn state from the 7i.8 test). Re-recorded a continuous video of the same duration (20 seconds) with `gc0308_capture_video.py`, to validate "can fixed mounting solve the crop-drift problem found in Section 7i.8."
+
+**An engineering lesson, recorded honestly**: `gc0308_capture_video.py` doesn't clear old files in `data/gc0308_video/`, and the first time the analysis script was re-run, the newly recorded 501 frames got mixed in the same folder with the 531 old frames from Section 7i.8, and `gc0308_rerun_ellseg_video.py` treated them as one continuous timeline and analyzed them together (1032 frames, with the frame-displacement numbers identical to the old data, indicating the script was in fact still reading the old files). After investigation confirmed the two recordings had a clear gap in real timestamps (several hours apart), added session auto-splitting logic to the analysis script based on timestamp gaps (the same method used to handle OV9281's two sessions in Section 7g.2, just that this time the bug surfaced first before this protection — which should have been there from the start — was added). Any future reuse of `gc0308_capture_video.py` needs to watch for this class of pitfall, where "the tool doesn't clear old data, quietly mixing new and old results together."
+
+**Frame-to-frame jitter comparison (same statistical basis, directly comparable)**:
+
+| Metric | Before fixed mounting (Section 7i.8, hand-held/loosely worn, 531 frames) | After fixed mounting (this section, 501 frames) |
+|---|---|---|
+| Median displacement | 10.3px | **2.3px** |
+| Mean displacement | 27.2px | **5.9px** |
+| 90th percentile displacement | 85.7px | **10.8px** |
+| Max displacement | 190.3px | 93.5px |
+
+All four metrics dropped across the board, with the median and 90th percentile both dropping to about a quarter, supporting Section 7i.9's judgment in both direction and magnitude that "fixed mounting can mitigate crop drift."
+
+**Visual review**: sampling every 20th frame (26 images), result:
+
+| Category | Count/26 | Note |
+|---|---|---|
+| Visually confirmed correct | 24 | ellipse overlaps with the segmentation mask, crop box stably frames the eye, no recurrence of the "crop box completely lost the eye" seen in Section 7i.8 |
+| Misjudged — unfair frame (genuine blink) | 2 (#180, #320) | cross-checked against the original frames: both are genuine moments of the eyelid fully/nearly closed, not camera drift, not a detector misjudgment — this is a normal occurrence any eye-tracking approach will encounter, not a flaw in GC0308 or EllSeg |
+
+```
+Whole-frame basis (denominator 26) = 24/26 ≈ 92.3%
+Fair-frame basis (excluding the 2 blink frames, denominator 24) = 24/24 = 100%
+```
+
+**Conclusion**: Section 7i.9's hypothesis holds — the problem of "the crop box not keeping up with real relative drift during actual use" basically disappears once GC0308 is rigidly fixed to the frame, and the remaining 2 "failures" were on inspection both normal blinks, not an approach defect. The continuous-video performance after fixed mounting (fair-frame 100%) is not only far better than before fixed mounting with hand-held testing (33%), it's even better than the static-crop re-test's 86.9% — the static-image test's samples themselves may have skewed toward "easy to detect" angles/states, while continuous video after fixed mounting actually gave a cleaner result.
+
+**This technical route is now fully validated end to end**: GC0308 (a close-range design, physically smaller and easier to mount than OV9281) + EllSeg (no IR needed, no need to adapt an optical focus) + rigid fixed mounting, under both static-image and continuous-video testing, gives a true accuracy at or above the OV9281+EllSeg baseline. The camera-miniaturization problem that initially stalled prototype progress now has a complete chain of experimental data supporting the conclusion that "GC0308 can replace OV9281."
+
+### 7i.11 Next Steps
+
+- Formally establish GC0308 as the eye-tracking camera route (superseding the OV9281-mounting-stalled problem mentioned at the start of Section 7i), update the camera-selection parts of `261010/dual-camera-glasses-roadmap.md`, avoiding repeatedly re-litigating the already-data-supported question of "swap the camera or not" in later discussion
+- Weigh-in and wear test: once GC0308, ESP32-CAM, and OLED are all fixed to the frame, do an actual weigh-in per the balance plan in Section 261016, confirming whether the left-right weight distribution is acceptable
+- The scene camera (ESP32-CAM) → OLED geometric mapping calibration remains independent of this section's conclusion and hasn't been done yet (recorded as an "open item" in Section 261016 — needs an external reference camera to photograph where the OLED lands in the real world after reflecting through the lens; this work is entirely decoupled from the pupil-detection route selection)
 
 ---
 
-## 7k. 第七k阶段：Phase2物体检测路线重新评估 + PC端YOLO首次真实检测跑通（2026-11-04）
+## 7j. Stage 7j: Phase 1 Full Chain First Run With Real Data (2026-10-30~2026-11-04)
 
-### 7k.1 发现"现成的FOMO模型"根本不是FOMO
+Corresponds to **Phase 1** of Section 8 "Phased Roadmap" in `261014/ESP32CAM+OV9281 Dual-Camera Eye Tracker · PC Direct-Control Feasibility Analysis.md` — PC takes over everything, get the geometric calibration and the mask visual effect right first, don't touch FOMO. Code is in a separate folder, `261030/`, kept apart from this report's path (the same precedent as 261022/261029), with detailed design in `261030/README.md`.
 
-讨论Phase2（261014文档第八节：把物体检测下放到ESP32本地，解决PC往返延迟）时，去核实`261003/esp32_camera2_OLED_object_detection.ino`依赖的Edge Impulse模型（`260919/ei-aida-project-1-arduino-1.0.7-impulse-#1.zip`，项目名"Aida-project-1"）到底是什么——此前`261022/README.md`一直写"Edge Impulse模型还在，等合适时机接回来"，这句话隐含"模型是现成能用的"这个假设，从未被验证过。
+### 7j.1 New Calibration: GC0308 Calibrated Directly Against the OLED Coordinate System
 
-解压检查`model_metadata.h`：
+`261004/calibration_ellseg.py` calibrates "pupil coordinates → an arbitrary 800×600 window," and uses a two-stage Haar-cascade detector (designed for a scenario like OV9281's, where "the eye only occupies a small portion of the frame"). GC0308 is a close-range crop and doesn't need, and isn't suited to, a Haar cascade (per GC0308's established approach: crop the box manually once, reuse it for the whole session). For this, built a new `261030/calibration_gc0308_oled.py`: calls only `pupil_detector_ellseg.py`'s `detect_pupil()` (not `detect_eye()`), with the calibration target being the OLED's real pixel coordinates (128×64) directly, skipping the conversion step of "calibrate to an arbitrary space first, then convert to OLED coordinates." The calibration result (affine matrix + crop box + camera index) is saved together into a JSON file, for downstream scripts to load directly without needing to re-calibrate each time — this is the first time in this report's history of calibration scripts that the result is persisted into a reusable file (`calibration.py`/`calibration_ellseg.py` previously only printed/plotted, with no way for another script to consume the result directly).
+
+**Two calibration results**:
+
+| Calibration run | Average error (OLED pixels, total width 128/height 64) | Per-point error range |
+|---|---|---|
+| First | 18.6px | 8.4~37.2px |
+| Second (final, adopted) | 12.8px | 4.1~22.8px |
+
+The two hand-boxed crop regions differed slightly (x=146→163, w=345→377), and the calibration result fluctuated accordingly, indicating a slight difference in the crop box affects the final precision — this is an expected, not-worth-further-investigating-right-now variable. 12.8px is about 10% of the OLED's width, comparable to or slightly better than the 114-154px (about 14-19% of the window) measured on OV9281 with the 800×600 window in Section 7h. Spot-checked a few annotated images (including the point with the largest error, TOP_RIGHT), the ellipse marker does land on a small, sharply-bounded dark region, not a reflection point/eyelash misjudgment — the detection is trustworthy.
+
+### 7j.2 New Fusion Script: Replacing the WASD Simulation With a Real Gaze Point
+
+`261022/fusion_poc.py` already validated that this debounce state machine + HTTP timing design for "only send a `/mask` request on a state change" has no inherent problem, but the gaze point was simulated via WASD keys and the distractor position was a hardcoded rectangle, both explicitly marked as placeholders. This stage built a new `261030/phase1_fusion.py`, replacing only the first of these: loads the JSON produced by `calibration_gc0308_oled.py`, reads GC0308→EllSeg→the affine matrix in real time to get a real gaze point in the OLED coordinate system, with the core debounce state machine logic reused as-is, unchanged. The distractor rectangle **is still a hardcoded placeholder** (defined in scene-frame coordinates, overlaid on the real `/capture` frame for display, then linearly scaled to OLED coordinates — not a formal scene↔OLED geometric calibration yet, that happens once the optical lens is installed) — this is explicitly out of scope for Phase 1, not an oversight this round.
+
+### 7j.3 Network Troubleshooting During Integration (Honestly Recorded in Full, Not Just the Result)
+
+The first run exposed `/mask` requests timing out; the investigation went through three rounds of hypotheses, only the third one finding the real cause:
+
+1. **First-round hypothesis**: the ESP32's single-threaded `WebServer` was "blocking `/mask` behind `/capture`'s processing," queuing it up until the 3-second timeout elapsed, but the command was actually getting through (because the user reported the OLED did show a faint response at the time). Response: extended the client timeout from 3 seconds to 10 seconds, and enlarged the test placeholder rectangle from 40×19px to 72×37px to make it easier to confirm visually.
+2. **Second-round re-test**: after extending the timeout, `/mask` requests instead **timed out 100% of the time at exactly 10 seconds, with the OLED showing no response at all** — this directly overturned the first round's "slow but succeeding" hypothesis, indicating the request wasn't being processed at all, not merely queuing slowly. This turned suspicion toward the ESP32 firmware being stuck, or the WiFi signal degrading after being physically mounted to the frame with the antenna possibly obstructed (a risk `261016_固定与供电计划.md`'s fixturing document, not included in this repository, had explicitly flagged).
+3. **Third round, using `ping` for layered troubleshooting**: had the user directly `ping` the ESP32's IP — a more fundamental connectivity test than HTTP, able to separate "a WiFi-link problem" from "an application-layer ESP32 hang." Ping showed **4/4 fully successful** — proving the WiFi link itself had no problem, overturning the "antenna obstructed" guess. Further questioning then confirmed: **the real cause was the user's own computer's WiFi briefly auto-disconnecting and reconnecting during those few minutes** — unrelated to the ESP32, the antenna, or the firmware at all, the simplest and easiest-to-overlook possibility, which the first two rounds of troubleshooting had overcomplicated. After the network recovered, re-testing showed `/mask` requests stably succeeding within 0.0~0.1 seconds.
+
+**The methodological lesson from this troubleshooting**: when hitting a fault that "looks complicated" (timeouts, intermittently slow), don't skip past "the most basic connectivity" layer and jump straight to guessing at application-layer logic or hardware problems — a tool as simple as `ping`, used for layered troubleshooting, is more efficient than going straight to reading code/suspecting hardware — this time it took a full two rounds of hypotheses before reaching for it.
+
+### 7j.4 Final Result: the Phase 1 Chain Runs End-to-End With Real Data for the First Time
+
+Real GC0308 pupil detection → EllSeg → calibration matrix → a real gaze point in the OLED coordinate system → a real HTTP `/mask` request → a real OLED response — the full chain runs end to end for the first time, with no step left as simulation/placeholder (object detection itself excepted, which is explicitly out of scope for Phase 1).
+
+During the run, the gaze point was observed switching in and out of the placeholder rectangle very frequently (multiple times within the same second), corresponding to the OLED flickering rapidly rather than lighting up steadily. Investigating this, it's not a bug — the user confirmed this is because the wearer is naturally continuously scanning across multiple devices while wearing the glasses (a natural eye-movement pattern in real use), compounded by the 12.8px calibration error and EllSeg's detection noise, meaning the gaze point does genuinely cross back and forth near the rectangle's boundary often. The user confirmed the current behavior is acceptable, and chose not to add debounce/anti-flicker logic for now — if the actual experience later feels the flickering impacts usability, debounce logic (such as "only switch state once stably on one side for N consecutive frames") can be added then.
+
+### 7j.5 Next Steps
+
+- The formal geometric calibration of scene camera → OLED (currently using a linear-scaling placeholder): will be done once the optical lens is installed, independent of this section's conclusion
+- Real object detection/FOMO integration (explicitly out of scope for Phase 1, in scope for Phase 2)
+- If the gaze-point flicker is later found to impact the actual experience, evaluate whether to add debounce logic (current judgment is this isn't needed, reasons recorded in 7j.4)
+- `261004/gc0308/identify_gc0308.py` had a previously undiscovered bug fixed at this stage: the script writes files directly with `cv2.imwrite()`, which silently fails under this project's non-ASCII path (`作品集/课程`), and the original code never checked the return value, so it kept printing "saved..." masking this problem, until the user went to check the file this time and discovered nothing had actually been written. Fixed by switching to the project's standard `imwrite_unicode()` pattern.
+
+---
+
+## 7k. Stage 7k: Phase 2 Object-Detection Route Re-evaluated + PC-Side YOLO's First Real Detection Run (2026-11-04)
+
+### 7k.1 Discovering That the "Existing FOMO Model" Is Not Actually FOMO At All
+
+While discussing Phase 2 (Section 8 of the `261014` document: pushing object detection down onto the ESP32 locally to solve the PC round-trip latency), we went to actually check what the Edge Impulse model that `261003/esp32_camera2_OLED_object_detection.ino` depends on (`260919/ei-aida-project-1-arduino-1.0.7-impulse-#1.zip`, project name "Aida-project-1") actually is — `261022/README.md` had always said "the Edge Impulse model is still there, bring it back when the time is right," a statement that implicitly assumes "the model is ready to use," which had never been verified.
+
+Unzipping and checking `model_metadata.h`:
 
 ```
-EI_CLASSIFIER_OBJECT_DETECTION = 0        <- 不是FOMO/目标检测
-results_type = EI_CLASSIFIER_TYPE_CLASSIFICATION   <- 是整图分类器
+EI_CLASSIFIER_OBJECT_DETECTION = 0        <- not FOMO/object detection
+results_type = EI_CLASSIFIER_TYPE_CLASSIFICATION   <- a whole-image classifier
 ```
 
-`model_variables.h`里的10个类别：`"Aida", "bottle", "computer", "digital mouse", "earpods", "ipad", "pen", "phone", "ringo", "unknown"`——明显是"桌面常见物品识别"练手项目的训练集，不是针对"手机屏幕/电视/广告牌"这类干扰物专门采集标注的。对照`260809/ADHD PlanA 技术方案整理.md`当时自己列过的训练FOMO该走的步骤（①明确干扰物分类②采集约200张目标图片③用FOMO打标训练），`Aida-project-1`大概率只是当时用来"先跑通Edge Impulse工作流"的练手项目，真正针对干扰物的FOMO训练从未做过。已同步更正`261022/README.md`里这句容易误导的描述。
+The 10 classes in `model_variables.h`: `"Aida", "bottle", "computer", "digital mouse", "earpods", "ipad", "pen", "phone", "ringo", "unknown"` — clearly a "common desktop items recognition" practice-project training set, not specifically collected and labeled for distractors like "phone screen/television/billboard." Cross-referencing the FOMO-training steps `260809/ADHD PlanA 技术方案整理.md` (not included in this repository) itself laid out (① define distractor categories ② collect about 200 target images ③ label and train with FOMO), "Aida-project-1" was most likely just a practice project used at the time to first get the Edge Impulse workflow running end to end — real FOMO training targeting distractors was never actually done. The misleading description in `261022/README.md` has been corrected accordingly.
 
-### 7k.2 决策：不重新训练FOMO，先用PC端预训练YOLO验证概念
+### 7k.2 Decision: Don't Retrain FOMO, First Validate the Concept With a Pre-trained PC-Side YOLO
 
-目标干扰物类别（手机、电脑屏幕、电视）**本来就是COCO数据集的标准类别**，不需要任何自定义采集/标注/训练，直接用预训练的YOLOv8在PC端跑就能识别——用`model.names`核实过，YOLOv8n里`class 67 = "cell phone"`、`62 = "tv"`、`63 = "laptop"`，和261010文档最初设想的干扰物类别基本对上。
+The target distractor categories (phone, computer screen, television) **happen to already be standard COCO dataset classes**, requiring no custom collection/labeling/training at all — a pre-trained YOLOv8 can run directly on the PC and recognize them. Checked via `model.names` that YOLOv8n has `class 67 = "cell phone"`, `62 = "tv"`, `63 = "laptop"` — matching roughly the distractor categories originally envisioned in the `261010` document.
 
-决策依据：投入Edge Impulse重新训练FOMO模型这条路，是为了解决"ESP32本地化+低延迟"这个问题，但这个问题本身（261014文档5.2节"转头滑移"的200ms延迟估算）从未在真实系统上验证过是否真的构成可感知的瓶颈——现阶段也早已不追求真·可穿戴（Pi路线已放弃，见7i节/261010文档）。在没有证实"延迟是真实痛点"之前，先投入训练成本去解决它，顺序倒了。于是新建`ESP32CAM  
-直连下载底板  
-上传成功`（命名刻意带"pc_yolo"后缀，与真正的"ESP32本地FOMO"方案区分，避免混淆），只替换`phase1_fusion.py`里"干扰物位置"那一半的写死矩形，"真实注视点"那一半原样复用。
+Rationale for the decision: investing in retraining a FOMO model with Edge Impulse was meant to solve the problem of "on-device locally at the ESP32, low latency," but this problem itself (the ~200ms latency estimate for "head-turn slippage" in Section 5.2 of the `261014` document) has never been validated as a genuinely perceptible bottleneck on the real system — and at this stage we're also no longer pursuing genuine wearability (the Pi route has already been abandoned, see Section 7i / `261010` document). Before confirming "latency is a real pain point," investing in training to solve it first is putting the steps in the wrong order. So we created a new script (deliberately suffixed "pc_yolo," distinguished from a genuine "on-device ESP32 FOMO" approach, to avoid confusion), replacing only the "distractor position" half of `phase1_fusion.py`, keeping the "real gaze point" half reused as-is.
 
-### 7k.3 排错过程：三种不同的检测失败模式，每次都用"不限类别+低阈值"诊断法查出真实原因
+### 7k.3 Troubleshooting Process: Three Different Detection-Failure Modes, Each Diagnosed With the "Unrestricted Class, Low Threshold" Method
 
-首次实测`class='cell phone', conf>=0.35`持续检测不到，没有停留在"调大概率阈值"这种猜测性调参，而是每次都用`model.predict(img, conf=0.01)`（不限类别、几乎不设阈值）把YOLO当时实际认为"像什么"的全部候选打出来，这个方法论和本报告贯穿始终的"程序输出不可信、要深挖实际原因"是一致的，只是这次诊断对象是外部预训练模型而不是自己训练的检测器。
+The first real test, with `class='cell phone', conf>=0.35`, kept failing to detect — rather than stopping at a guess like "turn up the confidence threshold," each time we used `model.predict(img, conf=0.01)` (no class restriction, almost no threshold) to print out everything YOLO actually thought the image "looked like" at that moment — this method is consistent with this report's methodology throughout: don't trust the program's output, dig into the actual cause — just this time the diagnosis target was an external pre-trained model rather than a self-trained detector.
 
-三轮实测，三种完全不同的失败原因：
+Three test rounds, three completely different causes of failure:
 
-| 轮次 | 现象 | 诊断方法 | 真实原因 |
+| Round | Symptom | Diagnosis method | Real cause |
 |---|---|---|---|
-| 1 | 手机贴近镜头，画面被占满一块模糊过曝的白色矩形 | `conf=0.01`跑出的最高候选是`microwave 0.194`/`tv 0.154`/`refrigerator 0.106`，"cell phone"完全不在候选里 | 距离太近，画面比例、清晰度都严重偏离YOLO训练数据分布——不是手机识别问题，是"这张照片根本不像任何训练集里见过的手机照片" |
-| 2 | 手机正常距离举在画面中央，但背面朝向摄像头（能看清三摄+MagSafe磁吸环） | 截取当时窗口画面单独跑`conf=0.01`检测，"cell phone"出现但`conf=0.077`，远低于0.35阈值；最高候选是`book 0.278` | COCO的"cell phone"训练图片几乎都是手机正面/亮屏的样子，手机背面（白色磨砂壳+圆形摄像头）视觉上更接近"书"的扁平矩形特征，是训练分布之外的视角 |
-| 3 | 手机转为屏幕朝向摄像头，但屏幕显示内容后被拍成一片死白、看不出任何图标/界面 | 同样方法诊断，"cell phone"完全不在候选里，最高候选是`laptop 0.245`/`toilet 0.199` | ESP32-CAM的OV2640传感器自动曝光应付不了"周围暗+屏幕亮"的大光比场景，近距离时把屏幕直接曝成失去全部细节的纯白色块——这是硬件曝光能力的限制，不是算法/参数问题 |
-| 4（成功） | 手机屏幕朝向摄像头、正常观看距离、屏幕内容可见（图标/界面有辨识度） | 程序正常报告 | `cell phone conf=0.43`，检测成功，OLED正确显示绿框并标注"REAL YOLO: cell phone" |
+| 1 | Phone held close to the camera, the frame filled with a blurry, overexposed white rectangle | the top candidates from `conf=0.01` were `microwave 0.194`/`tv 0.154`/`refrigerator 0.106`, "cell phone" didn't appear in the candidates at all | too close — the frame's proportions and clarity were severely out of the distribution YOLO was trained on — not a phone-recognition problem, it's that "this photo doesn't resemble any phone photo in the training set at all" |
+| 2 | Phone held at a normal distance in the center of the frame, but facing back-side-out toward the camera (showing the triple camera + MagSafe ring clearly) | captured that moment's window frame and ran `conf=0.01` detection on it alone — "cell phone" appeared but at `conf=0.077`, far below the 0.35 threshold; the top candidate was `book 0.278` | COCO's "cell phone" training images are almost all phone front/screen-lit views; a phone's back (a white matte shell + circular camera bump) visually resembles a "book"'s flat rectangular features more — a viewing angle outside the training distribution |
+| 3 | Phone turned screen-toward-camera, but the screen content was captured as a blown-out solid white block, with no icons/UI visible | same diagnosis method, "cell phone" didn't appear in the candidates at all, the top candidates were `laptop 0.245`/`toilet 0.199` | the ESP32-CAM's OV2640 sensor's auto-exposure can't handle a "dark surroundings + bright screen" high-contrast scene at close range, blowing the screen out to a pure-white block losing all detail — a hardware exposure-capability limitation, not an algorithm/parameter problem |
+| 4 (success) | Phone screen facing the camera, normal viewing distance, screen content visible (icons/UI recognizable) | the program reported normally | `cell phone conf=0.43`, detection succeeded, the OLED correctly showed a green box labeled "REAL YOLO: cell phone" |
 
-### 7k.4 结论
+### 7k.4 Conclusion
 
-全链路（GC0308真实注视点 + YOLO真实物体检测 + 真实OLED响应）首次完整打通，证明"目标类别是COCO标准类别，不需要自定义训练"这个判断成立。但用户反馈成功率不高、检测不太稳定（"有点笨笨的"）——这和7k.3节诊断出的三种失败模式是一致的：真实佩戴/手持场景下，手机的朝向、距离、屏幕内容是否可辨认，都会随自然动作持续变化，任何一个滑进上述三种失败区间，这一帧就检测不到。这不是YOLO本身精度不够，是**ESP32-CAM的画质/动态范围 + 真实使用中物体朝向的不可控**共同构成的瓶颈，用更好的检测模型不能直接解决后两者。
+The full chain (real GC0308 gaze point + real YOLO object detection + real OLED response) runs end to end for the first time, confirming the judgment that "the target classes are standard COCO classes, no custom training needed" holds. But the user reported the success rate isn't high, detection is somewhat unstable ("a bit dumb") — consistent with the three failure modes diagnosed in Section 7k.3: in a real wearing/hand-held scenario, a phone's orientation, distance, and whether its screen content is legible all keep changing with natural movement, and sliding into any one of the three failure zones above means that frame won't be detected. This isn't YOLO itself lacking precision — it's a bottleneck jointly constituted by **the ESP32-CAM's image quality/dynamic range and the uncontrollable orientation of objects in real use** — a better detection model alone can't directly solve the latter two.
 
-### 7k.5 下一步
+### 7k.5 Next Steps
 
-- 如果要提高实际可用的检测稳定率，方向不是换更强的检测模型，而是改善输入质量：比如固定ESP32-CAM的曝光参数（不用自动曝光，手动给一个折中值，避免对亮屏过曝）、或者接受"检测不稳定"本身，用时间上的平滑（比如连续几帧里出现过一次就维持判定一小段时间）缓解单帧失败的影响
-- 场景摄像头→OLED的正式几何标定仍然独立于本节结论，还没有做
-- 真正的"ESP32本地FOMO"（261014文档定义的Phase2）仍然不建议现在投入——先在PC端YOLO这条路上把检测稳定性问题摸清楚，再决定是否值得为了延迟去重新走一遍Edge Impulse训练流程
+- If the goal is to improve the actually-usable detection stability rate, the direction isn't switching to a stronger detection model, it's improving input quality: e.g. fixing the ESP32-CAM's exposure parameters (not using auto-exposure, giving a manual compromise value to avoid blowing out a bright screen), or accepting that "detection will be unstable" as a given, and smoothing over time (e.g. once detected in any recent frame, maintain that judgment for a short while) to soften the impact of single-frame failures
+- The scene camera → OLED's formal geometric calibration remains independent of this section's conclusion, and still hasn't been done
+- A genuine "on-device ESP32 FOMO" (the Phase 2 defined in the `261014` document) still isn't recommended for investment right now — first nail down the detection-stability problem on this PC-side YOLO path, then decide whether it's worth going through the whole Edge Impulse training pipeline again just for latency
 
 ---
 
-## 8. 总体结论与技术脉络总结
+## 8. Overall Conclusions and Technical-Thread Summary
 
-| 验证项 | 方法 | 结果 |
+| Validation item | Method | Result |
 |---|---|---|
-| OV9281图像采集 | 连续抓帧测FPS | ✅ 117FPS@720p，零丢帧 |
-| 图像质量（无IR） | 均值/标准差/饱和度统计 | ✅ 曝光可用，但眼部局部质量未知 |
-| 人脸/眼睛粗定位 | Haar cascade命中率统计 | ⚠️ 15.5%，不稳定但基本可用 |
-| 瞳孔检测（OV9281，无IR） | Otsu阈值+圆度筛选+视觉核查 | ❌ 真实成功率0/20(0%) |
-| 瞳孔检测（OV9281，有IR，静态样本） | 同上方法+人工公平帧分类 | ⚠️ 真实成功率22/81(27.2%) |
-| GC0308模组FPS | 连续抓帧测FPS | ⚠️ 实测29-31FPS，远低于商品标称120FPS |
-| 瞳孔检测（GC0308，内置IR） | 同一算法，全画面→裁剪→降噪三轮 | ❌ 真实成功率0%，瓶颈为传感器颗粒噪声（非对比度不足） |
-| 实时采集+检测+记录链路（OV9281，有IR） | 拆分ROI命中率/瞳孔检测率双指标 | ✅ 15.17% ROI命中 / 30.16% 瞳孔检测，与静态基线吻合，链路验证通过 |
-| 5点相对注视实验 | 4次运行，IR状态不可控/不可追溯 | ⚠️ 数据不可比，方法论缺口已识别，需固定光源后重测 |
-| 5点标定 | 框架已搭建 | ⚠️ 首次产出真实数据（见7h节，EllSeg版），方向正确但误差偏大 |
-| 瞳孔检测（无IR，星射线法） | 同一20帧样本，程序报告vs人工复核对比 | ⚠️ 程序报告30%，人工复核后约10%，方向性改善但不足以替代IR |
-| 虹膜检测（无IR，MediaPipe，正视角度） | 19帧全脸样本，FaceLandmarker iris landmark | ✅ 程序报告57.9%，人工复核11/11全部准确 |
-| 虹膜检测（无IR，MediaPipe，6方向） | 60帧全脸样本，中/左/右/上/下 | ✅ 60/60(100%)检出，未逐帧复核但目视无跳变，架构上需先全脸输入 |
-| 无IR眼部特写深度学习候选排查（DeepVOG/EllSeg/PupilSense/KD-Eye/SAM，7e节） | 依赖安装+仓库拉取尝试 | ⚠️ 0/6可运行（MediaPipe路线不适配新硬件方向，其余5个因依赖失效/无编译工具链/无公开代码/网络不稳定未能跑通），未产出精度数据 |
-| 瞳孔检测（EllSeg深度学习，无IR，眼部特写） | 同一20帧样本，程序报告vs人工复核（椭圆与模型自身分割mask是否重合） | ✅ 程序报告100%，人工复核后13/20全帧(65.0%)／13/15公平帧(86.7%)——超过此前IR+Otsu基线(27.2%)，本项目迄今最佳无IR方案，详见7f节 |
-| EllSeg连续视频流复测 + 真实吞吐实测（7g节） | 新采集265帧连续序列，同一套视觉复核方法，抽样14帧；同时测全流程真实墙钟耗时 | ✅ 人工复核12/14≈85.7%（与7f节86.7%吻合，独立新数据验证一致性）；实测吞吐7.79 FPS，与纯推理理论值7.9 FPS一致 |
-| 5点视线标定（EllSeg版，7h节） | 新建calibration_ellseg.py，先后排查"无方向信号"异常并定位根因（裁剪框局部坐标 vs 固定画面坐标），修复后复测 | ⚠️ 修复前完全无方向信号（根因：瞳孔坐标用了逐帧漂移的裁剪框局部坐标）；修复后两次独立测试均出现符合几何直觉的方向规律，标定误差114-154px（800×600窗口），方向正确但精度仍不足以支撑实际使用，瓶颈已定位（样本量少+手持不稳+Haar cascade在极端角度ROI命中率低） |
+| OV9281 image capture | continuous-frame FPS measurement | ✅ 117FPS@720p, zero dropped frames |
+| Image quality (no IR) | mean/std/saturation statistics | ✅ exposure usable, but local eye-region quality unknown |
+| Face/eye coarse localization | Haar cascade hit-rate statistics | ⚠️ 15.5%, unstable but basically usable |
+| Pupil detection (OV9281, no IR) | Otsu threshold+circularity filtering+visual review | ❌ true success rate 0/20(0%) |
+| Pupil detection (OV9281, with IR, static samples) | same method + manual fair-frame classification | ⚠️ true success rate 22/81(27.2%) |
+| GC0308 module FPS | continuous-frame FPS measurement | ⚠️ measured 29-31FPS, far below the nominal 120FPS spec |
+| Pupil detection (GC0308, built-in IR) | same algorithm, full-frame→cropped→denoised, three rounds | ❌ true success rate 0%, bottleneck is sensor granular noise (not insufficient contrast) |
+| Real-time capture+detect+record chain (OV9281, with IR) | split into ROI hit rate/pupil detection rate, two metrics | ✅ 15.17% ROI hit / 30.16% pupil detection, consistent with the static baseline, chain validated |
+| 5-point relative gaze experiment | 4 runs, IR status uncontrolled/untraceable | ⚠️ data not comparable, methodological gap identified, needs re-testing with a fixed light source |
+| 5-point calibration | framework already built | ⚠️ first real data produced (see Section 7h, the EllSeg version), direction correct but error still large |
+| Pupil detection (no IR, starburst method) | same 20-frame sample, program report vs. manual review comparison | ⚠️ program reported 30%, about 10% after manual review, a directional improvement but not enough to replace IR |
+| Iris detection (no IR, MediaPipe, frontal angle) | 19 full-face frame samples, FaceLandmarker iris landmark | ✅ program reported 57.9%, manual review 11/11 all accurate |
+| Iris detection (no IR, MediaPipe, 6 directions) | 60 full-face frame samples, center/left/right/up/down | ✅ 60/60(100%) detected, not reviewed frame by frame but no jumps seen visually, architecturally requires full-face input first |
+| No-IR close-up-eye-crop deep-learning candidate survey (DeepVOG/EllSeg/PupilSense/KD-Eye/SAM, Section 7e) | dependency install + repo-pull attempts | ⚠️ 0/6 runnable (the MediaPipe route doesn't fit the new hardware direction, the other 5 couldn't be run due to dependency death/no compile toolchain/no public code/unstable network), no precision data produced |
+| Pupil detection (EllSeg deep learning, no IR, close-up eye crop) | same 20-frame sample, program report vs. manual review (whether the ellipse overlaps the model's own segmentation mask) | ✅ program reported 100%, after manual review 13/20 whole-frame(65.0%) / 13/15 fair-frame(86.7%) — exceeds the earlier IR+Otsu baseline (27.2%), this project's best no-IR approach to date, details in Section 7f |
+| EllSeg continuous-video-stream re-test + real-throughput measurement (Section 7g) | newly captured 265-frame continuous sequence, same visual-review method, sampled 14 frames; also measured full-pipeline real wall-clock time | ✅ manual review 12/14≈85.7% (consistent with Section 7f's 86.7%, independent new data confirms consistency); measured throughput 7.79 FPS, consistent with the pure-inference theoretical value of 7.9 FPS |
+| 5-point gaze calibration (EllSeg version, Section 7h) | built calibration_ellseg.py new, investigated and localized a "no directional signal" anomaly (pupil coordinates used the drifting crop-box local coordinates vs. the fixed full-frame coordinates), re-tested after the fix | ⚠️ completely no directional signal before the fix (root cause: pupil coordinates used a per-frame-drifting crop box's local coordinates); after the fix, two independent tests both showed a direction pattern matching geometric intuition, calibration error 114-154px (800×600 window), direction correct but precision still not enough to support real use, bottleneck already localized (too few samples + hand-held instability + the Haar cascade's low ROI hit rate at extreme angles) |
 
-**两条硬件路线对比小结**：
-- **OV9281 + 外挂850nm IR补光灯**：瓶颈是对比度/光照，IR照明已验证有效（0%→27.2%），路线判定为"部分可行，需继续改进算法鲁棒性与采集稳定性"。
-- **GC0308专用模组（内置IR）**：瓶颈是传感器固有颗粒噪声，与光照无关，IR照明充足也无法解决；但几何形状完整度（圆度0.4-0.6）优于OV9281，说明换一种对噪声更鲁棒的算法（如先专门的去噪/平滑再做更宽松的圆度判定，或改用基于梯度/星形射线法等对噪声不敏感的瞳孔定位方法）有可能在这条路线上更快突破，是否投入取决于该模组量产一致性是否可控。
+**Summary comparison of the two hardware routes**:
+- **OV9281 + external 850nm IR fill light**: the bottleneck is contrast/lighting, IR illumination has been validated effective (0%→27.2%), the route is judged "partially viable, needs continued improvement in algorithm robustness and capture stability."
+- **GC0308 dedicated module (built-in IR)**: the bottleneck is inherent sensor granular noise, unrelated to lighting, even ample IR illumination can't solve it; but its geometric-shape completeness (circularity 0.4-0.6) is better than OV9281's, suggesting a noise-more-robust algorithm (e.g. a dedicated denoise/smoothing pass before a looser circularity judgment, or a gradient/starburst-style pupil-localization method insensitive to noise) could break through faster on this route — whether to invest depends on whether this module's manufacturing consistency is controllable. **(Later update: Section 7i confirmed EllSeg solves this noise bottleneck, achieving parity with OV9281 — see below.)**
 
-**完整技术脉络**：
-1. 先验证采集链路本身没问题（第二～四阶段）
-2. 再验证定位链路部分可行但不稳定（第五阶段）
-3. 发现瞳孔分割在无IR条件下完全不可行，且这个结论经过"程序输出成功→视觉复核发现是误报→收紧标准→重新确认0%"的自我纠错过程（第六阶段）
-4. 提前搭建好下游工程框架，为硬件改进留出接口（第七～十阶段框架）
-5. IR硬件到货后复测，过程中排查出3个独立的真实工程问题（头部位移、曝光锁定不可靠、camera index漂移），最终确认IR有效但不充分，并用"公平帧筛选"方法把原始数字校正为更可信的口径（第六c阶段）
-6. 并行测试第二条硬件路线（专用IR模组），用相同算法/相同方法论排查出完全不同性质的瓶颈（传感器噪声而非光照），确认两条路线不能互相替代对方的问题，且在新增更强光源测试前主动中止以规避不明确的眼部辐照安全风险（第六d阶段）
-7. 正式运行第七/八阶段，用双指标拆分法验证实时链路可信度与静态基线吻合；运行第九阶段时暴露出"IR光源手持不稳定、状态不可追溯"和"脚本缺少事后视觉核查能力"两个方法论缺口，如实记录为不可比数据而非勉强给出结论（第七c阶段）
+**Full technical thread**:
+1. First validate the capture chain itself has no problem (Stages 2-4)
+2. Then validate the localization chain is partially viable but unstable (Stage 5)
+3. Discover pupil segmentation is completely infeasible under no-IR conditions, and this conclusion went through a self-correcting process of "program output success → visual review finds it's a false positive → tighten the standard → re-confirm 0%" (Stage 6)
+4. Build out the downstream engineering framework in advance, leaving an interface for hardware improvement (Stages 7-10 framework)
+5. Re-test once the IR hardware arrives, in the process uncovering 3 independent genuine engineering problems (head displacement, unreliable exposure locking, camera-index drift), finally confirming IR is effective but insufficient, and using the "fair-frame filtering" method to correct the raw figure to a more trustworthy basis (Stage 6c)
+6. Test a second hardware route in parallel (a dedicated IR module), using the same algorithm/methodology to uncover a completely different-natured bottleneck (sensor noise rather than lighting), confirming the two routes can't substitute for each other's problem, and proactively halting before testing a stronger light source to avoid an unclear eye-irradiance safety risk (Stage 6d)
+7. Formally run Stages 7/8, using the split-metric method to validate the real-time chain's trustworthiness matches the static baseline; running Stage 9 exposed two methodological gaps — "the IR light source being hand-held and unstable, state untraceable" and "the script lacking after-the-fact visual-review capability" — honestly recorded as incomparable data rather than forcing a conclusion (Stage 7c)
+8. **(Major update) Discovered the deep-learning approach EllSeg**, achieving a true accuracy under no-IR conditions (86.7%/85.7%, static+continuous video) far exceeding the previous IR+classical-algorithm baseline (27.2%), becoming this project's best pupil-detection approach to date (Sections 7f/7g)
+9. Produced real, directionally-correct 5-point calibration data for the first time, in the process localizing and fixing a "no directional signal" root cause (pupil coordinates using a drifting crop box's local coordinates rather than the camera's fixed full-frame coordinates) (Section 7h)
+10. **Solved the camera-miniaturization problem**: confirmed EllSeg also solves GC0308's noise bottleneck, reaching parity with OV9281 after fixed mounting (Section 7i), abandoned the Pi Zero 2 W all-in-one wearable route, switched to a PC-direct-control architecture as the current main line (Sections 7i/7j, `261010`/`261014` documents)
+11. **Ran the Phase 1 full chain end-to-end with real data for the first time**: real pupil coordinates → OLED coordinates calibration, real gaze point driving real OLED mask display (Section 7j)
+12. **Re-evaluated the Phase 2 object-detection route**: discovered the "existing model" was never actually FOMO, switched to validating the concept with a pre-trained PC-side YOLO first, diagnosing three real-world failure modes (Section 7k)
 
-**下一步**：
-- OV9281路线：固定IR光源安装方式（不再手持），补全第九阶段脚本的图片存档能力后重新运行5点注视实验；排查对焦漂移、规避角膜二次反射干扰源
-- GC0308路线（更新，见7i节）：静态裁剪图复测真实成功率约86.9%（62/62全量复核，公平帧口径），与OV9281+EllSeg基本持平；手持状态下连续视频复测暴露了裁剪框跟不上漂移的问题（7i.8，公平帧仅约39%）；**GC0308刚性固定到镜架后重新测连续视频，帧间抖动降到约1/4，视觉复核公平帧成功率100%（7i.10）**——这条路线已验证完整，GC0308取代OV9281解决了摄像头小型化问题。下一步是称重试戴+更新硬件选型文档（见7i.11），场景摄像头→OLED几何标定仍是独立待办
-- 正式运行第十阶段（5点标定，目前代码就绪，尚未执行，且依赖第九阶段先产出可信数据）
-- **无IR眼部特写深度学习路线（7f节已验证，优先级最高）**：EllSeg在更大样本量/连续视频流上复测，验证帧间稳定性与实时性；PupilSense因EllSeg已验证有效而降低优先级，仅作为备选保留
-- ESP32CAM联调（见7e.7节）：等待用户新采购的带延长线摄像头到货后，用`261022/`固件+脚本直接测试链路
+**Next steps**:
+- OV9281 route: fix the IR light source's mounting (no longer hand-held), re-run the 5-point gaze experiment once the Stage 9 script's image-archiving capability is completed; troubleshoot focus drift, guard against the corneal-secondary-reflection interference source
+- GC0308 route (already resolved, see Section 7i): the camera-miniaturization problem has been fully validated — GC0308 replaces OV9281, with weigh-in/wear testing and hardware-selection documentation updates as the next step, the scene-camera→OLED geometric calibration remains an independent open item
+- **The no-IR close-up-eye-crop deep-learning route (validated in Section 7f, highest priority)**: re-test EllSeg on a larger sample/continuous video stream, validating frame-to-frame stability and real-time performance; PupilSense is deprioritized now that EllSeg has been validated effective, kept only as a fallback
+- **PC direct-control main line (Sections 7i.11/7j/7k)**: Phase 1 (real gaze point + real OLED mask) has been validated; Phase 2's object-detection route has pivoted to a pre-trained PC-side YOLO, with the next priority being input-quality improvement (fixed exposure) and temporal smoothing, rather than training an on-device FOMO model
+- The scene camera → OLED's formal geometric calibration: will be done once the optical lens is installed, independent of the above conclusions
 
 ---
 
-## 附：完整文件清单
+## Appendix: Complete File List
 
 ```
-环境与诊断：
-  copy_cascades.py / check_cv2.py           OpenCV中文路径问题的诊断与修复
+Environment and diagnostics:
+  copy_cascades.py / check_cv2.py           diagnosis and fix for the OpenCV non-ASCII-path problem
 
-第二阶段：
-  camera_test.py                              camera枚举 + 真实FPS测量
-  identify_camera.py                          视觉核查index对应设备
-  camera_enum_results.json                    原始测量数据
+Stage 2:
+  camera_test.py                              camera enumeration + real FPS measurement
+  identify_camera.py                          visual confirmation of which index maps to which device
+  camera_enum_results.json                    raw measurement data
 
-第三阶段：
-  capture_raw.py                               原始图像采集（10静态帧+340帧5秒序列）
+Stage 3:
+  capture_raw.py                               raw image capture (10 static frames + a 340-frame 5-second sequence)
 
-第四阶段：
-  image_quality.py                             图像质量统计分析
+Stage 4:
+  image_quality.py                             image-quality statistical analysis
   data/results/image_quality.csv
 
-第五阶段：
-  eye_roi.py                                   Haar cascade自动ROI + 手动框选兜底
+Stage 5:
+  eye_roi.py                                   Haar-cascade automatic ROI + manual-box fallback
   haarcascade_frontalface_default.xml / haarcascade_eye.xml
 
-第六阶段（无IR基线）：
-  pupil_detection.py                           批量瞳孔检测 + 阈值从0.5修正到0.75
+Stage 6 (no-IR baseline):
+  pupil_detection.py                           batch pupil detection + threshold corrected from 0.5 to 0.75
   data/results/pupil_detection.csv             0/20
 
-第七～十阶段框架：
-  pupil_detector.py                            共享检测模块
-  eye_tracking_realtime.py                     实时可视化+CSV+metadata记录框架（10/9升级：加roi_found字段拆分双指标统计）
-  gaze_experiment.py                           5点相对注视实验框架（10/9升级：加实时Eye ROI预览窗口+roi_found字段；计划再加图片审计存档未写入成功，见7c.3）
-  calibration.py                               5点标定+仿射拟合框架
+Stages 7-10 framework:
+  pupil_detector.py                            shared detection module
+  eye_tracking_realtime.py                     real-time visualization+CSV+metadata logging framework (10/9 upgrade: added a roi_found field splitting the dual-metric statistics)
+  gaze_experiment.py                           5-point relative gaze experiment framework (10/9 upgrade: added a real-time Eye ROI preview window+roi_found field; a planned addition of image-audit archiving was unsuccessful, see Section 7c.3)
+  calibration.py                               5-point calibration + affine-fit framework
 
-第六c阶段（IR复测）：
-  ir_comparison.py                             IR开关亮度对照（含3次失败尝试的完整注释记录）
-  ir_pupil_test.py                             IR照明下采集+即时检测合并脚本
-  ir_audit_contact_sheet.py                    100张样本人工视觉分类联系表生成
-  data/results/pupil_detection_ir.csv           100张原始检测结果
-  data/results/ir_audit_classified.csv         人工分类后的公平/不公平帧标注
-  data/results/ir_audit_contact_sheets/         4张联系表图片
+Stage 6c (IR re-test):
+  ir_comparison.py                             IR on/off brightness comparison (including full annotated records of 3 failed attempts)
+  ir_pupil_test.py                             combined capture+immediate-detection script under IR illumination
+  ir_audit_contact_sheet.py                    generates a manual visual-classification contact sheet for 100 samples
+  data/results/pupil_detection_ir.csv           raw detection results for 100 samples
+  data/results/ir_audit_classified.csv         manually classified fair/unfair frame labels
+  data/results/ir_audit_contact_sheets/         4 contact-sheet images
 
-第六d阶段（GC0308平行硬件路线，独立子目录 gc0308/）：
-  gc0308/identify_gc0308.py                    设备识别（含第一次失效样本的保留记录）
-  gc0308/gc0308_fps_test.py                    真实FPS实测（29-31FPS，对比商品标称120FPS）
-  gc0308/pupil_detector_base.py                 复用的共享检测算法（从OV9281路线原样复制，未改参数）
-  gc0308/gc0308_pupil_test.py                   第一轮：全画面检测（0/73）
-  gc0308/gc0308_pupil_test_cropped.py           第二轮：手动裁剪ROI排除鼻梁噪点（0/61，误报2例）
-  gc0308/pupil_detector_denoised.py             第三轮：附加中值滤波的独立检测器变体
-  gc0308/gc0308_rerun_denoised.py               离线复用已有样本重跑降噪检测（0/61，未修正原有误报）
-  gc0308/data/gc0308_results/                   三轮CSV结果
-  gc0308/data/gc0308_samples* / gc0308_processed*  各轮原始样本与标注图
+Stage 6d (GC0308 parallel hardware route, independent subdirectory gc0308/):
+  gc0308/identify_gc0308.py                    device identification (including a record of a kept first invalid sample)
+  gc0308/gc0308_fps_test.py                    real FPS measurement (29-31FPS, vs. the nominal 120FPS spec)
+  gc0308/pupil_detector_base.py                 reused shared detection algorithm (copied as-is from the OV9281 route, no parameters changed)
+  gc0308/gc0308_pupil_test.py                   Round 1: full-frame detection (0/73)
+  gc0308/gc0308_pupil_test_cropped.py           Round 2: manual ROI cropping to exclude nose-bridge noise (0/61, 2 misjudgments)
+  gc0308/pupil_detector_denoised.py             Round 3: an independent detector variant with added median filtering
+  gc0308/gc0308_rerun_denoised.py               re-ran the denoised detector offline on existing samples (0/61, didn't correct the existing misjudgments)
+  gc0308/data/gc0308_results/                   CSV results from all three rounds
+  gc0308/data/gc0308_samples* / gc0308_processed*  raw samples and annotated images from each round
 
-第七d阶段（无IR纯算法探索，迁移自261010路线图）：
-  pupil_detector_starburst.py                  方案A星射线法检测器
-  compare_algorithms.py                        Otsu vs 星射线法对比+可视化
-  capture_full_face.py                         全脸无IR采集（19帧，正视角度）
-  capture_full_face_multidir.py                全脸无IR多方向采集（60帧，中/左/右/上/下）
-  test_mediapipe_iris.py                       方案B MediaPipe虹膜检测（19帧批次）
-  test_mediapipe_iris_multidir.py              方案B MediaPipe虹膜检测（60帧多方向批次）
-  data/face_full/ , data/face_full_multidir/   对应采集样本
-  models/face_landmarker.task                  MediaPipe FaceLandmarker模型文件
+Stage 7d (no-IR pure-algorithm exploration, migrated from the 261010 roadmap):
+  pupil_detector_starburst.py                  Approach A, the starburst-method detector
+  compare_algorithms.py                        Otsu vs. starburst-method comparison + visualization
+  capture_full_face.py                         no-IR full-face capture (19 frames, frontal angle)
+  capture_full_face_multidir.py                no-IR full-face multi-direction capture (60 frames, center/left/right/up/down)
+  test_mediapipe_iris.py                       Approach B, MediaPipe iris detection (19-frame batch)
+  test_mediapipe_iris_multidir.py              Approach B, MediaPipe iris detection (60-frame multi-direction batch)
+  data/face_full/ , data/face_full_multidir/   corresponding captured samples
+  models/face_landmarker.task                  MediaPipe FaceLandmarker model file
 
-第七e阶段（眼部特写方案确认 + 无IR深度学习候选排查，本次未产出新数据，仅记录排查过程）：
-  （本阶段为调研/环境排查性质，未在261004目录下新增数据文件；ESP32CAM联调固件见独立文件夹 261022/，与本报告路径区分）
+Stage 7e (close-up-eye-crop approach confirmation + no-IR deep-learning candidate survey, no new data produced this round, only the investigation process recorded):
+  (this stage is research/environment-investigation in nature, no new data files were added under the 261004 directory; the ESP32CAM integration firmware is in a separate folder, 261022/, kept apart from this report's path)
 
-第七f阶段（EllSeg深度学习方案验证）：
-  run_ellseg_inference.py                      推理脚本（复用官方evaluate_ellseg.py核心函数，输入改为PNG目录）
-  data/results/ellseg_results.csv              20张图程序原始输出（椭圆参数、检出标志）
-  data/results/ellseg_visual_audit.csv          人工逐张视觉复核分类（正确/误判/公平帧判定）
-  data/results/ellseg/*_overlay.png             20张单图标注输出（分割mask+椭圆叠加，供复核留痕）
-  data/results/ellseg_contact_sheet.png         20图联系表（推理脚本自动生成）
-  data/results/ellseg_audit_batch0~2.png        人工复核用放大联系表（300px缩略图）
-  data/results/ellseg_audit_zoom1~3.png         人工复核用进一步放大图（400px，针对边界/疑似误判样本）
-  （EllSeg仓库本体克隆在项目目录之外：C:\Users\34659\AppData\Local\Temp\EllSeg，用partial clone+sparse-checkout拉取，见7f.1节；RITnet_v2/v3/v4.py三处numpy兼容性改动在该外部目录内，不在本项目git追踪范围）
+Stage 7f (EllSeg deep-learning approach validation):
+  run_ellseg_inference.py                      inference script (reusing the official evaluate_ellseg.py's core functions, input switched to a PNG directory)
+  data/results/ellseg_results.csv              raw program output for the 20 images (ellipse parameters, detection flag)
+  data/results/ellseg_visual_audit.csv          manual frame-by-frame visual review classification (correct/misjudged/fair-frame determination)
+  data/results/ellseg/*_overlay.png             20 single-image annotated outputs (segmentation mask+ellipse overlay, kept for review traceability)
+  data/results/ellseg_contact_sheet.png         20-image contact sheet (auto-generated by the inference script)
+  data/results/ellseg_audit_batch0~2.png        enlarged contact sheets for manual review (300px thumbnails)
+  data/results/ellseg_audit_zoom1~3.png         further-enlarged images for manual review (400px, for borderline/suspected-misjudged samples)
+  (the EllSeg repo itself was cloned outside the project directory: C:\Users\34659\AppData\Local\Temp\EllSeg, pulled via partial clone+sparse-checkout, see Section 7f.1; the numpy-compatibility fixes in RITnet_v2/v3/v4.py were made in that external directory, not within this project's git tracking)
 
-第七g阶段（EllSeg更大样本量+连续视频流复测）：
-  capture_eye_video_noIR.py                     连续视频流采集脚本（复用eye_roi.py的ROI检测，持续采集替代按键触发）
-  run_ellseg_video_stability.py                 连续帧稳定性分析脚本（含修复后的预处理函数，见7g.3节浮点截断bug）
-  data/eye_video_noIR/                          342帧原始采集（session A 77帧+session B 265帧）
-  data/results/ellseg_video_sessionB_timeline.csv  265帧逐帧结果+帧间位移
-  data/results/ellseg_video_sessionB_jitter_plot.png  瞳孔轨迹+抖动曲线
-  data/results/ellseg_video_sessionB_sample_contact_sheet.png  每20帧抽样联系表（共14张，供视觉复核）
-  data/results/ellseg_video_zoom/frame_*.png    14个抽样帧的单独放大标注图（人工复核用）
+Stage 7g (EllSeg larger-sample + continuous-video-stream re-test):
+  capture_eye_video_noIR.py                     continuous-video-stream capture script (reusing eye_roi.py's ROI detection, continuous capture replacing key-press-triggered capture)
+  run_ellseg_video_stability.py                 continuous-frame stability-analysis script (including the post-fix preprocessing function, see Section 7g.3's floating-point truncation bug)
+  data/eye_video_noIR/                          342 raw captured frames (session A 77 frames + session B 265 frames)
+  data/results/ellseg_video_sessionB_timeline.csv  265 frames' per-frame results + frame-to-frame displacement
+  data/results/ellseg_video_sessionB_jitter_plot.png  pupil trajectory + jitter curve
+  data/results/ellseg_video_sessionB_sample_contact_sheet.png  a contact sheet sampling every 20th frame (14 images total, for manual review)
+  data/results/ellseg_video_zoom/frame_*.png    14 individually enlarged annotated sampled frames (for manual review)
 
-第七h阶段（5点视线标定，EllSeg版）：
-  pupil_detector_ellseg.py                      EllSeg检测器模块，接口与pupil_detector.py一致（detect_eye/detect_pupil），供标定/注视实验脚本替换使用
-  calibration_ellseg.py                         5点标定脚本（EllSeg版，不覆盖原calibration.py），含实时Eye ROI预览窗口+固定画面坐标修正
-  data/results/calibration_ellseg_<timestamp>.csv          每次运行独立存档的逐帧标定数据（含局部/全局两套坐标）
-  data/results/calibration_ellseg_audit_<timestamp>/        每次运行独立存档的成功检测标注图（人工复核用）
-  data/results/calibration_ellseg_result_<timestamp>.png    标定结果散点图（目标位置 vs 预测位置）
+Stage 7h (5-point gaze calibration, EllSeg version):
+  pupil_detector_ellseg.py                      EllSeg detector module, with an interface identical to pupil_detector.py (detect_eye/detect_pupil), for calibration/gaze-experiment scripts to swap in
+  calibration_ellseg.py                         5-point calibration script (EllSeg version, does not overwrite the original calibration.py), includes a real-time Eye ROI preview window + fixed full-frame coordinate fix
+  data/results/calibration_ellseg_<timestamp>.csv          per-frame calibration data saved independently per run (including both local/global coordinate sets)
+  data/results/calibration_ellseg_audit_<timestamp>/        successful-detection annotated images saved independently per run (for manual review)
+  data/results/calibration_ellseg_result_<timestamp>.png    calibration-result scatter plot (target position vs. predicted position)
 
-第七i阶段（摄像头小型化方向，GC0308 + EllSeg复测，脚本存放于独立文件夹）：
-  261029/gc0308_rerun_ellseg.py                 复用run_ellseg_inference.py的EllSeg加载/推理/叠加逻辑，输入换成gc0308/data/gc0308_samples_cropped/，与本报告路径区分（同261022的先例）
-  gc0308/data/gc0308_results/gc0308_pupil_detection_ellseg.csv   62张样本的程序原始输出（检出标志、椭圆参数）
-  gc0308/data/gc0308_results/gc0308_ellseg_contact_sheet.png     62张缩略图联系表（人工复核用）
-  gc0308/data/gc0308_processed_ellseg/                           62张单图标注输出（分割mask+瞳孔/虹膜椭圆叠加，供复核留痕）
-  261029/gc0308_capture_video.py                 连续视频采集（开场一次性手动裁剪框+自动连续保存，不逐帧跑Haar cascade）
-  261029/gc0308_rerun_ellseg_video.py            连续帧EllSeg推理+抖动分析（复用run_ellseg_video_stability.py的逻辑）
-  gc0308/data/gc0308_video/                      531帧连续采集原始裁剪帧（7i.8节，18.2秒会话）
-  gc0308/data/gc0308_results/gc0308_ellseg_video_timeline.csv        逐帧结果+帧间位移
-  gc0308/data/gc0308_results/gc0308_ellseg_video_jitter_plot.png     瞳孔轨迹+抖动曲线
-  gc0308/data/gc0308_results/gc0308_ellseg_video_sample_contact_sheet.png  每20帧抽样联系表（27张，人工复核用，7i.8节，手持/松散佩戴session）
-  gc0308/data/gc0308_results/gc0308_ellseg_video_timeline_session1.csv              固定安装后新session逐帧结果（7i.10节，501帧）
-  gc0308/data/gc0308_results/gc0308_ellseg_video_jitter_plot_session1.png          固定安装后瞳孔轨迹+抖动曲线（7i.10节）
-  gc0308/data/gc0308_results/gc0308_ellseg_video_sample_contact_sheet_session1.png 固定安装后抽样联系表（26张，7i.10节）
+Stage 7i (camera-miniaturization direction, GC0308 + EllSeg re-test, scripts stored in a separate folder):
+  261029/gc0308_rerun_ellseg.py                 reuses run_ellseg_inference.py's EllSeg loading/inference/overlay logic, input switched to gc0308/data/gc0308_samples_cropped/, kept apart from this report's path (the same precedent as 261022)
+  gc0308/data/gc0308_results/gc0308_pupil_detection_ellseg.csv   raw program output for the 62 samples (detection flag, ellipse parameters)
+  gc0308/data/gc0308_results/gc0308_ellseg_contact_sheet.png     a 62-image thumbnail contact sheet (for manual review)
+  gc0308/data/gc0308_processed_ellseg/                           62 single-image annotated outputs (segmentation mask+pupil/iris ellipse overlay, kept for review traceability)
+  261029/gc0308_capture_video.py                 continuous video capture (crop once manually at the start + auto continuous saving, not running Haar cascade frame by frame)
+  261029/gc0308_rerun_ellseg_video.py            continuous-frame EllSeg inference + jitter analysis (reusing run_ellseg_video_stability.py's logic)
+  gc0308/data/gc0308_video/                      531 continuously captured raw crop frames (Section 7i.8, an 18.2-second session)
+  gc0308/data/gc0308_results/gc0308_ellseg_video_timeline.csv        per-frame results + frame-to-frame displacement
+  gc0308/data/gc0308_results/gc0308_ellseg_video_jitter_plot.png     pupil trajectory + jitter curve
+  gc0308/data/gc0308_results/gc0308_ellseg_video_sample_contact_sheet.png  a contact sheet sampling every 20th frame (27 images, for manual review, Section 7i.8, hand-held/loosely-worn session)
+  gc0308/data/gc0308_results/gc0308_ellseg_video_timeline_session1.csv              per-frame results from the new session after fixed mounting (Section 7i.10, 501 frames)
+  gc0308/data/gc0308_results/gc0308_ellseg_video_jitter_plot_session1.png          pupil trajectory + jitter curve after fixed mounting (Section 7i.10)
+  gc0308/data/gc0308_results/gc0308_ellseg_video_sample_contact_sheet_session1.png sampled contact sheet after fixed mounting (26 images, Section 7i.10)
 
-第七j阶段（Phase1全链路首次真实数据跑通，代码存放于独立文件夹）：
-  261030/README.md                              Phase1范围/设计/运行顺序说明
-  261030/calibration_gc0308_oled.py             GC0308直接对OLED坐标系的5点标定，结果存成JSON供复用
-  261030/gc0308_oled_calibration.json           标定结果（仿射矩阵+裁剪框+camera index），phase1_fusion.py直接加载
-  261030/phase1_fusion.py                       真实融合主程序：真实注视点+真实HTTP/mask，干扰物仍为占位
-  261030/phase2_fusion_pc_yolo.py               PC端YOLO版：干扰物位置换成真实YOLOv8n检测（7k节），注视点部分原样复用phase1_fusion.py
-  261030/yolov8n.pt                             预训练权重，未做任何自定义训练，COCO标准类别(cell phone/tv/laptop等)直接够用
+Stage 7j (Phase 1 full chain first run with real data, code stored in a separate folder):
+  261030/README.md                              Phase 1 scope/design/run-order description
+  261030/calibration_gc0308_oled.py             5-point calibration of GC0308 directly against the OLED coordinate system, result saved as JSON for reuse
+  261030/gc0308_oled_calibration.json           calibration result (affine matrix+crop box+camera index), loaded directly by phase1_fusion.py
+  261030/phase1_fusion.py                       real fusion main program: real gaze point + real HTTP /mask, distractor still a placeholder
+  261030/phase2_fusion_pc_yolo.py               PC-side YOLO version: distractor position replaced with real YOLOv8n detection (Section 7k), the gaze-point part reuses phase1_fusion.py as-is
+  261030/yolov8n.pt                             pre-trained weights, no custom training done at all, standard COCO classes (cell phone/tv/laptop etc.) are sufficient as-is
 ```

@@ -1,119 +1,119 @@
-# 261022 — ESP32CAM WiFi推流 + OLED遮挡显示 联调
+# 261022 — ESP32CAM WiFi Streaming + OLED Occlusion Display Integration
 
-独立于 `261003/`、`260919/`、`260918/` 等旧文件夹，这是新一轮"PC端融合、ESP32CAM只做采集和显示"架构下的固件和测试脚本。
+Independent of `261003/`, `260919/`, `260918/` and other earlier folders, this is the firmware and test scripts for the new "PC does the fusion, ESP32CAM only captures and displays" architecture.
 
-## 背景
+## Background
 
-之前 `261003/esp32_camera2_OLED_object_detection/*.ino` 跑的是本地Edge Impulse目标检测，检测完直接显示在OLED上，完全闭环，没有WiFi/PC通信。这一版固件改成相反的架构：ESP32CAM只负责**采集画面**和**接收PC指令画OLED**，检测/融合判断全部挪到PC端。原因见对话记录——Edge Impulse模型暂不使用，等OV9281这一路的眼动检测算法确定后，再决定要不要把物体检测也挪回本地跑。
+The earlier `261003/esp32_camera2_OLED_object_detection/*.ino` ran local Edge Impulse object detection and displayed the result directly on the OLED — a fully closed loop, no WiFi/PC communication. This firmware revision flips the architecture: the ESP32CAM is only responsible for **capturing frames** and **receiving PC commands to draw on the OLED**; detection/fusion judgment is moved entirely to the PC side. Reason: see the conversation log — the Edge Impulse model is shelved for now, pending the OV9281-side eye-detection algorithm being settled before deciding whether to move object detection back on-device too.
 
-> 更新（2026-10-23）：眼动检测算法已不再是"DeepVOG测试中"——DeepVOG本身因依赖的`tensorflow-gpu`包已从PyPI下架被排除，实际验证通过的是EllSeg（无IR、眼部特写，人工复核后公平帧86.7%准确率），见`261004/experiment_report.md`第7f节。ESP32CAM这条线与该结论无关，独立推进。
+> Update (2026-10-23): the eye-detection algorithm is no longer "DeepVOG, under test" — DeepVOG itself was excluded because its `tensorflow-gpu` dependency has been pulled from PyPI; the approach that actually passed validation is EllSeg (no IR, close-up eye crop, 86.7% accuracy on fair frames after manual review) — see `261004/experiment_report.md` section 7f. This ESP32CAM line is unrelated to that conclusion and proceeds independently.
 
-## 文件
+## Files
 
-- `esp32cam_wifi_mask_server/esp32cam_wifi_mask_server.ino` — 烧录到ESP32CAM的固件
-- `test_esp32cam_link.py` — PC侧测试脚本，验证三个HTTP接口是否正常
-- `test_mask_manual.py` — `/mask`接口的手动逐步测试脚本，画一次、等你确认看到了再清除（比`test_esp32cam_link.py`里自动2秒清除的版本更适合人工目视核查，支持`--x/--y/--w/--h`自定义区域）
-- `fusion_poc.py` — PC端"判断是否遮挡->发指令"这条融合逻辑的PoC，眼动追踪和物体检测部分用键盘/写死矩形模拟，见文件内docstring详细说明范围边界，不要误以为这是最终融合逻辑
+- `esp32cam_wifi_mask_server/esp32cam_wifi_mask_server.ino` — firmware to flash onto the ESP32CAM
+- `test_esp32cam_link.py` — PC-side test script verifying the three HTTP endpoints work
+- `test_mask_manual.py` — a step-by-step manual test for the `/mask` endpoint: draws once, waits for you to confirm you saw it, then clears it (better suited for manual visual verification than `test_esp32cam_link.py`'s version, which auto-clears after 2 seconds; supports a custom region via `--x/--y/--w/--h`)
+- `fusion_poc.py` — a PoC of the PC-side "decide whether to occlude → send command" fusion logic; the eye-tracking and object-detection parts are simulated with keyboard input / a hardcoded rectangle — see the in-file docstring for the exact scope boundary, do not mistake this for the final fusion logic
 
-## 硬件接线（复用自已验证可用的旧配置，未改动）
+## Hardware Wiring (reused from an already-validated config, unchanged)
 
-- 摄像头：AI-Thinker ESP32-CAM 标准引脚（照搬 `261003/esp32_camera2_OLED_object_detection`）
-- OLED (SSD1306 128x64)：SDA=GPIO13, SCL=GPIO14, I2C地址0x3C（照搬 `261003/OLED_test_ESP32CAM`）
+- Camera: standard AI-Thinker ESP32-CAM pinout (copied from `261003/esp32_camera2_OLED_object_detection`)
+- OLED (SSD1306 128x64): SDA=GPIO13, SCL=GPIO14, I2C address 0x3C (copied from `261003/OLED_test_ESP32CAM`)
 
-## 烧录前必须改的地方
+## Required Edits Before Flashing
 
-打开 `esp32cam_wifi_mask_server.ino`，改这两行为实际WiFi信息：
+Open `esp32cam_wifi_mask_server.ino` and change these two lines to the actual WiFi credentials:
 
 ```cpp
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 ```
 
-## 烧录环境要求（本机未装arduino-cli，以下是根据代码依赖推出的要求，未实际编译验证，烧录前请核对）
+## Flashing Environment Requirements (arduino-cli is not installed on this machine; the following is inferred from the code's dependencies, not actually compile-verified — please double-check before flashing)
 
-- **开发板**：Arduino IDE 里选择 "AI Thinker ESP32-CAM"（与261003验证过的板子一致）
-- **Partition Scheme**：需要选 "Huge APP" 或类似大分区方案（摄像头+WiFi+OLED三者一起，标准分区可能不够用）
-- **PSRAM**：必须在板子设置里启用 PSRAM（代码里 `fb_location = CAMERA_FB_IN_PSRAM` 直接依赖这个，不开PSRAM会在`esp_camera_init`这一步直接失败）
-- **需要额外安装的库**（通过 Arduino IDE 库管理器安装，ESP32核心不自带）：
+- **Board**: select "AI Thinker ESP32-CAM" in the Arduino IDE (matches the board already validated in 261003)
+- **Partition Scheme**: needs "Huge APP" or a similarly large partition scheme (camera + WiFi + OLED together may not fit in the standard partition)
+- **PSRAM**: must be enabled in the board settings (the code's `fb_location = CAMERA_FB_IN_PSRAM` directly depends on this — without PSRAM enabled, `esp_camera_init` fails immediately)
+- **Extra libraries needed** (install via the Arduino IDE Library Manager, not bundled with the ESP32 core):
   - `Adafruit GFX Library`
   - `Adafruit SSD1306`
-  - （`esp_camera.h`、`WiFi.h`、`WebServer.h`、`Wire.h` 随ESP32开发板包自带，不需要单独装）
-- **上传方式**：ESP32-CAM本身没有USB直连，需要USB转TTL模块；进入下载模式按惯例需要烧录时把 GPIO0 接地，烧录完成后断开再复位——这一步如果你上次烧261003时已经有现成的接线/流程，直接复用即可，这里只是提醒，不是新增要求
+  - (`esp_camera.h`, `WiFi.h`, `WebServer.h`, `Wire.h` come bundled with the ESP32 board package, no separate install needed)
+- **Upload method**: the ESP32-CAM has no direct USB connection, a USB-to-TTL adapter is needed; entering download mode, as usual, requires grounding GPIO0 before flashing, then disconnecting and resetting after flashing completes — if you already have a working wiring/process from flashing 261003 previously, just reuse it; this is only a reminder, not a new requirement
 
-## HTTP接口
+## HTTP Endpoints
 
-| 接口 | 方法 | 参数 | 说明 |
+| Endpoint | Method | Params | Description |
 |---|---|---|---|
-| `/capture` | GET | 无 | 返回单帧JPEG（QVGA 320x240），轮询式抓拍，不是连续视频流 |
-| `/mask` | GET | `x,y,w,h,on` | 在OLED(128x64)上画/清除密集文字遮挡矩形。`on=1`画，`on=0`清（整屏重画） |
-| `/status` | GET | 无 | 返回JSON：WiFi连接状态、摄像头/OLED是否初始化成功、本机IP |
+| `/capture` | GET | none | returns a single JPEG frame (QVGA 320x240), poll-based snapshot, not a continuous video stream |
+| `/mask` | GET | `x,y,w,h,on` | draws/clears a dense-text occlusion rectangle on the OLED (128x64). `on=1` draws, `on=0` clears (full-screen redraw) |
+| `/status` | GET | none | returns JSON: WiFi connection status, whether the camera/OLED initialized successfully, local IP |
 
-## 验证步骤
+## Verification Steps
 
-1. 烧录固件，打开串口监视器看输出的IP地址
-2. `python test_esp32cam_link.py --ip <该IP>`
-3. 脚本会依次测 `/status` → `/capture`（存一张图到`test_captures/`看画面对不对）→ `/mask`（OLED左上角应该出现一小块"/"密集填充，2秒后清除）
+1. Flash the firmware, open the serial monitor to see the printed IP address
+2. `python test_esp32cam_link.py --ip <that IP>`
+3. The script tests in order: `/status` → `/capture` (saves an image to `test_captures/` to check the frame looks right) → `/mask` (a small "/" dense-fill block should appear in the OLED's top-left corner, clearing after 2 seconds)
 
-## 当前阶段的简化/已知缺口（如实记录）
+## Known Simplifications/Gaps at This Stage (recorded honestly)
 
-- **OLED直接代表"人眼看到的范围"**：用户还没装光学透镜，(x,y,w,h)这几个参数就是OLED自身的像素坐标，不经过任何几何映射转换。等透镜装上、做完场景摄像头↔OLED的标定后，这里要换成标定矩阵换算后的坐标。
-- **`/capture`是轮询抓拍，不是MJPEG流**：PC端需要反复调用这个接口拼出"准实时"效果，真实帧率取决于PC轮询频率和WiFi延迟，没做流式优化。
-- **`/mask`清除是整屏重画**：如果以后要同时显示多个遮挡区域，现在的实现会把其他区域一起清掉，需要在服务端维护一个遮挡区域列表才能支持多区域。
-- **没有鉴权**：纯局域网内部测试用，不能暴露在公网。
-- **Edge Impulse本地推理暂不使用**：~~模型还在，但这版固件没调用它~~ **2026-11-04更正：这句话容易让人误以为"模型是现成能用的FOMO，接回来就行"，实际检查过模型本身后发现不是这样，见文末"2026-11-04更正"一节**，物体检测这次放到PC端做（或者先用一个固定的手动矩形模拟"干扰物"验证链路）。
+- **The OLED directly represents "what the eye sees"**: the user has not yet installed the optical lens, so the `(x,y,w,h)` parameters are just the OLED's own pixel coordinates, with no geometric-mapping conversion applied. Once the lens is installed and the scene-camera↔OLED calibration is done, these will need to switch to coordinates converted through the calibration matrix.
+- **`/capture` is poll-based snapshotting, not an MJPEG stream**: the PC side needs to repeatedly call this endpoint to stitch together a "quasi-real-time" effect; the actual frame rate depends on PC polling frequency and WiFi latency, no streaming optimization has been done.
+- **`/mask` clearing is a full-screen redraw**: if multiple occlusion regions ever need to be shown at once, the current implementation will clear all other regions along with it — the server would need to maintain a list of occlusion regions to support multi-region display.
+- **No authentication**: for local-LAN internal testing only, must not be exposed to the public internet.
+- **Local Edge Impulse inference is not currently used**: ~~the model is still there, this firmware revision just doesn't call it~~ **2026-11-04 correction: this phrasing could easily be misread as "the model is a ready-to-use FOMO model, just plug it back in" — after actually inspecting the model, that's not the case, see the "2026-11-04 correction" section at the end of this file** — object detection is done on the PC side this time (or, for now, with a fixed manual rectangle simulating a "distractor" to validate the chain).
 
-## 与OV9281/眼动检测那条线的关系
+## Relationship to the OV9281/Eye-Detection Line
 
-这份固件只负责外部场景摄像头(ESP32CAM的OV2640/OV3660)这一路，不涉及OV9281眼动检测。眼动检测算法目前的主力方案是EllSeg（无IR、眼部特写，人工复核后公平帧准确率86.7%），详见`261004/experiment_report.md`第7f节。
+This firmware only handles the external scene camera (the ESP32CAM's OV2640/OV3660), it has nothing to do with OV9281 eye detection. The current primary approach for the eye-detection algorithm is EllSeg (no IR, close-up eye crop, 86.7% accuracy on fair frames after manual review) — see `261004/experiment_report.md` section 7f.
 
-融合逻辑（PC端判断瞳孔落点是否在ESP32CAM检测框内、决定要不要发`/mask`指令）这次还没写，属于下一步。
+The fusion logic (the PC side judging whether the pupil's gaze point falls inside a box detected by the ESP32CAM, and deciding whether to send a `/mask` command) hasn't been written yet this round — that's the next step.
 
-## 联调验证记录（2026-10-25）
+## Integration Log (2026-10-25)
 
-新板子首次烧录+联调，三个接口全部验证通过（含人工目视OLED确认，不是只看程序返回值）。过程中排查出的真实问题，如实记录：
+First flash + integration test of a new board, all three endpoints passed (including manual visual confirmation on the OLED, not just checking the program's return values). Real problems uncovered during the process, recorded honestly:
 
-1. **`camera_config_t`字段名拼写**：代码原来写的是`pin_sccb_sda`/`pin_sccb_scl`，和261003验证过能跑的版本（`pin_sscb_sda`/`pin_sscb_scl`）不一致——`esp32-camera`库这个字段名在不同版本间改过名，两种写法不一定同时兼容。已改成和261003一致的旧拼写。
-2. **WiFi SSID含特殊字符导致连不上**：最初用的热点名`Aida's iPhone`带一个弯引号撇号，板子一直报`status=1`（`WL_NO_SSID_AVAIL`，根本扫描不到这个SSID），怀疑是这个特殊字符在"手机显示→人工转述→代码里敲出来→编译"这条链路上的某个环节字节没对上。改成纯ASCII的热点名后立刻连上，验证了这个猜测。**教训：WiFi SSID只要带非ASCII字符，都建议先改成纯英文数字再排查，不要在编码层面猜来猜去。**
-3. **iPhone个人热点默认WPA3+5GHz，经典ESP32不保证兼容**：这两项都不是ESP32（AI-Thinker板子这颗，非S3/C3）明确支持的，提前让用户在热点设置里打开"最大兼容性"，强制退回WPA2+2.4GHz，避免了这个潜在风险（这次没来得及验证"不开最大兼容性会不会真的连不上"，因为在确认SSID字符问题之前已经顺手换掉了，两个变量没有分开验证）。
-4. **`/mask`测试踩过一次"看起来没反应"的坑**：第一次测试用的区域(x=0,y=0,w=40,h=20)和开机时就已经显示的"WiFi connected"+IP地址文字重叠，画上去的"/"字符叠在已有文字上不容易看出来，一度误以为`/mask`没生效。换成屏幕下半部分的空白区域测试后确认正常。**后续如果要在OLED左上角叠加遮挡效果，需要先清除或避开开机信息残留的文字。**
-5. 代码里给WiFi连接逻辑加了`WiFi.mode(WIFI_STA)`+连接前清理旧状态，以及卡住时每10秒打印一次`WiFi.status()`原始状态码（而不是一排看不出区别的点），方便下次如果又连不上能直接定位是哪种原因（找不到SSID/密码错/其他）。
+1. **`camera_config_t` field-name spelling**: the code originally used `pin_sccb_sda`/`pin_sccb_scl`, inconsistent with the version already validated working in 261003 (`pin_sscb_sda`/`pin_sscb_scl`) — the `esp32-camera` library has renamed this field between versions, and the two spellings aren't necessarily both compatible. Changed to match the old spelling used in 261003.
+2. **WiFi SSID with special characters prevented connection**: the hotspot name originally used was `Aida's iPhone`, containing a curly apostrophe, and the board kept reporting `status=1` (`WL_NO_SSID_AVAIL`, unable to even scan and find this SSID) — suspected this special character got mangled somewhere along the chain of "phone display → manually transcribed by a person → typed into the code → compiled." Switching to a pure-ASCII hotspot name connected immediately, confirming the hypothesis. **Lesson: whenever a WiFi SSID contains any non-ASCII character, switch to plain English/digits first before troubleshooting — don't go guessing around at the encoding layer.**
+3. **iPhone personal hotspot defaults to WPA3+5GHz, not guaranteed compatible with classic ESP32**: neither of these is explicitly supported by this particular ESP32 board (the AI-Thinker one, not an S3/C3) — had the user turn on "Maximum Compatibility" in the hotspot settings ahead of time, forcing it back to WPA2+2.4GHz, to avoid this potential risk (didn't get a chance to verify "would it really fail to connect without Maximum Compatibility," since it was switched off proactively before the SSID character issue was confirmed — the two variables weren't isolated separately).
+4. **A "looks like nothing happened" pitfall with `/mask` testing**: the first test region (x=0,y=0,w=40,h=20) overlapped with the "WiFi connected" + IP-address text already shown on boot, so the drawn "/" characters overlaid on existing text and were hard to notice — momentarily mistaken for `/mask` not working. Switched to testing on a blank area in the lower half of the screen and confirmed it was working normally. **Going forward, if occlusion effects are to be overlaid in the OLED's top-left corner, the boot-time info text residue needs to be cleared or avoided first.**
+5. Added `WiFi.mode(WIFI_STA)` plus clearing old state before connecting to the WiFi-connection logic, and when stuck, printed the raw `WiFi.status()` status code every 10 seconds (rather than a row of indistinguishable dots), making it easier to pinpoint the exact failure cause next time a connection fails (SSID not found / wrong password / other).
 
-**验证结论**：`/status`、`/capture`（存图确认是真实画面）、`/mask`（人工确认OLED上出现并清除了遮挡图案）三项全部通过。ESP32CAM这条链路本身可用，下一步是写PC端的融合判断逻辑（眼动检测结果→场景摄像头画面→决定何时发`/mask`指令）。
+**Verification conclusion**: `/status`, `/capture` (saved image confirmed as a real frame), `/mask` (manually confirmed the occlusion pattern appeared and cleared on the OLED) all three passed. The ESP32CAM link itself is usable; next step is writing the PC-side fusion judgment logic (eye-detection result → scene-camera frame → deciding when to send a `/mask` command).
 
-## 融合逻辑PoC（`fusion_poc.py`）
+## Fusion Logic PoC (`fusion_poc.py`)
 
-链路验证通过之后新增。**这不是最终的融合逻辑，是一个验证"判断-触发-执行"这套状态机和HTTP时序本身没问题的PoC**，原因很直接：现在既没有可信的眼动->OLED坐标映射（261004第7c.3节记录的标定数据不可信），也没有接入真实的物体检测模型（物体检测这块按计划先搁置，见上文"当前阶段的简化"）。
+Added after the link was validated. **This is not the final fusion logic, it's a PoC validating that this "judge-trigger-execute" state machine and HTTP timing have no inherent problem** — for a direct reason: there is currently neither a trustworthy eye-tracking→OLED coordinate mapping (the calibration data recorded in `261004` section 7c.3 is not trustworthy), nor a real object-detection model wired in (object detection is deliberately shelved for now, see "Known Simplifications" above).
 
-脚本用WASD模拟注视点在OLED坐标系(128x64)里移动、用一个写死的矩形模拟干扰物位置，两者都明确标注在代码注释和运行时的屏幕文字里（橙色框标"FAKE OBJECT"，绿/红点标"SIMULATED GAZE"），不会和真实检测结果混淆。真实的部分是：轮询ESP32CAM真实的`/capture`做场景画面参考展示、真实调用`/mask`接口控制真实的OLED、以及"状态跳变时才发请求（不是每帧都发）"这个防抖逻辑。
+The script uses WASD keys to simulate the gaze point moving within the OLED coordinate system (128x64), and a hardcoded rectangle to simulate a distractor's position — both explicitly labeled in the code comments and in on-screen text at runtime (an orange box labeled "FAKE OBJECT," a green/red dot labeled "SIMULATED GAZE"), so they won't be confused with real detection results. The real parts are: polling the ESP32CAM's actual `/capture` for a scene-frame reference display, actually calling the `/mask` endpoint to control the real OLED, and the "only send a request when state changes (not every frame)" debounce logic.
 
-用法：
+Usage:
 ```bash
-python fusion_poc.py --ip <ESP32CAM的IP>
+python fusion_poc.py --ip <ESP32CAM's IP>
 ```
-点一下"OLED-space"预览窗口获得键盘焦点，WASD移动模拟注视点进出橙色框，观察真实OLED是否跟着画出/清除遮挡；按q退出（会自动清除OLED，不留卡住的画面）。
+Click the "OLED-space" preview window to get keyboard focus, use WASD to move the simulated gaze point in and out of the orange box, and observe whether the real OLED correctly draws/clears the occlusion; press q to quit (automatically clears the OLED, no stuck frame left behind).
 
-**后续要把这个PoC换成真实融合逻辑，需要：**
-1. 261004完成可信的瞳孔坐标->OLED坐标标定（即重新正式跑通第九、十阶段）
-2. 选定并接入场景摄像头的真实物体检测模型，把检测框坐标映射到OLED坐标系
-3. 把`fusion_poc.py`里`get_simulated_gaze()`对应的键盘读取逻辑、以及`FAKE_OBJECT_RECT`这个写死矩形，换成上面两项的真实输出——核心的状态机/防抖/HTTP触发逻辑不需要改动
+**To turn this PoC into the real fusion logic, three things are needed:**
+1. Finish a trustworthy pupil-coordinate → OLED-coordinate calibration in 261004 (i.e. formally re-run Stages 9 and 10)
+2. Select and integrate a real object-detection model for the scene camera, mapping the detection-box coordinates into the OLED coordinate system
+3. Replace `fusion_poc.py`'s `get_simulated_gaze()` keyboard-reading logic and the hardcoded `FAKE_OBJECT_RECT` with the real outputs from the two items above — the core state-machine/debounce/HTTP-trigger logic doesn't need to change
 
-**验证结果（2026-10-25）**：人工确认通过——模拟注视点（WASD控制）进入写死的"假干扰物"矩形瞬间，真实OLED屏幕真的画出了遮挡图案；移出矩形后，真实OLED真的清除了遮挡。"判断跳变->触发HTTP->真实设备响应"这条链路本身验证完毕，剩下的工作量在上面三条列出的"真实数据替换模拟数据"上，不在这条链路的工程机制上。
+**Verification result (2026-10-25)**: manually confirmed working — the moment the simulated gaze point (WASD-controlled) entered the hardcoded "fake distractor" rectangle, the real OLED screen really did draw the occlusion pattern; once it moved out of the rectangle, the real OLED really did clear it. The "judge jump → trigger HTTP → real device responds" link itself is fully verified; the remaining work is replacing simulated data with real data per the three items above, not in the engineering mechanism of this link itself.
 
-## 后续更新（2026-10-30）
+## Later Update (2026-10-30)
 
-上面"后续要把这个PoC换成真实融合逻辑"列出的第1项（真实瞳孔坐标->OLED坐标标定）已经完成，见`261030/`文件夹：
-- 眼动摄像头已从OV9281换成GC0308（原因见`261004/experiment_report.md`7i节）
-- `261030/calibration_gc0308_oled.py`：直接标定"GC0308瞳孔坐标 -> OLED(128x64)坐标"，不再需要中间换算
-- `261030/phase1_fusion.py`：`fusion_poc.py`的真实数据版，注视点换成真实GC0308+EllSeg数据，核心防抖状态机逻辑原样复用，没有改动
+Item 1 from the "to turn this PoC into real fusion logic" list above (real pupil-coordinate → OLED-coordinate calibration) has since been completed, see the `261030/` folder:
+- The eye-tracking camera has switched from OV9281 to GC0308 (reason in `261004/experiment_report.md` section 7i)
+- `261030/calibration_gc0308_oled.py`: calibrates "GC0308 pupil coordinates → OLED (128x64) coordinates" directly, no intermediate conversion needed anymore
+- `261030/phase1_fusion.py`: the real-data version of `fusion_poc.py`, with the gaze point switched to real GC0308+EllSeg data; the core debounce state machine logic is reused as-is, unchanged
 
-第2项（真实物体检测/FOMO）仍未接入，`261030/phase1_fusion.py`里干扰物矩形仍是写死的占位——这是Phase1范围内明确不做的部分（`261014`文档第八节），不是遗漏。
+Item 2 (real object detection/FOMO) is still not wired in — `261030/phase1_fusion.py`'s distractor rectangle is still a hardcoded placeholder — this is explicitly out of scope for Phase 1 (`261014` section 8), not an oversight.
 
-## 2026-11-04更正：之前说的"模型还在"不是FOMO，是个练手分类器
+## 2026-11-04 Correction: What We Previously Called "the model is still there" Is Not FOMO, It's a Practice Classifier
 
-讨论Phase2（把物体检测下放到ESP32-CAM本地）时，去实际检查了`261003/esp32_camera2_OLED_object_detection.ino`依赖的那个Edge Impulse模型（`260919/ei-aida-project-1-arduino-1.0.7-impulse-#1.zip`，项目名"Aida-project-1"），发现和之前"模型还在，等合适时机接回来"这个说法隐含的假设不一样：
+While discussing Phase 2 (pushing object detection down onto the ESP32-CAM locally), we actually inspected the Edge Impulse model that `261003/esp32_camera2_OLED_object_detection.ino` depends on (`260919/ei-aida-project-1-arduino-1.0.7-impulse-#1.zip`, project name "Aida-project-1"), and found it doesn't match the assumption implicit in the earlier phrasing "the model is still there, bring it back when the time is right":
 
-- 解压检查`model_metadata.h`：`EI_CLASSIFIER_OBJECT_DETECTION = 0`，`results_type = EI_CLASSIFIER_TYPE_CLASSIFICATION`——**这是一个整图分类器，不是FOMO目标检测模型**，不输出物体在画面里的位置/边界框，只判断"这张图整体属于哪一类"
-- `model_variables.h`里的10个类别：`"Aida", "bottle", "computer", "digital mouse", "earpods", "ipad", "pen", "phone", "ringo", "unknown"`——明显是"桌面常见物品识别"这类练手项目的训练集，不是针对"手机屏幕""电视""广告牌"这类干扰物专门采集标注的
-- 对照`260809/ADHD PlanA 技术方案整理.md`自己列过的训练FOMO模型该走的步骤（①明确干扰物分类②采集约200张目标图片③用FOMO打标训练），`Aida-project-1`大概率只是当时用来"先跑通Edge Impulse工作流"的练手项目，真正针对干扰物的FOMO训练从未做过
+- Checking `model_metadata.h`: `EI_CLASSIFIER_OBJECT_DETECTION = 0`, `results_type = EI_CLASSIFIER_TYPE_CLASSIFICATION` — **this is a whole-image classifier, not a FOMO object-detection model** — it does not output an object's position/bounding box within the frame, it only judges "which single class this whole image belongs to"
+- The 10 classes in `model_variables.h`: `"Aida", "bottle", "computer", "digital mouse", "earpods", "ipad", "pen", "phone", "ringo", "unknown"` — clearly a "common desktop items recognition" practice-project training set, not specifically collected and labeled for distractors like "phone screen," "television," "billboard"
+- Cross-referencing the FOMO-training steps `260809/ADHD PlanA 技术方案整理.md` (not included in this repository) itself laid out (① define distractor categories ② collect ~200 target images ③ label and train with FOMO), "Aida-project-1" was most likely just a practice project used at the time to first get the Edge Impulse workflow running end to end — real FOMO training targeting distractors was never actually done
 
-**结论**：Phase2不是"把现成模型接回固件"这种软件接线工作，而是要从头走一遍训练流程——先定义干扰物类别、采集/标注图片、用FOMO（不是分类器）重新训练、导出新库替换`Aida-project-1_inferencing.h`。这是一块新的工作量，不是被搁置、随时能捡起来用的半成品。
+**Conclusion**: Phase 2 is not "plug the existing model back into the firmware" — a simple software wiring job — it's a from-scratch training pipeline: first define distractor categories, collect/label images, train with FOMO (not a classifier) from scratch, export a new library to replace `Aida-project-1_inferencing.h`. This is new work, not a shelved half-finished piece that can just be picked back up and used.

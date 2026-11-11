@@ -1,62 +1,62 @@
-# 261030 — Phase 1：PC全接管链路首次用真实数据跑通
+# 261030 — Phase 1: The PC-Takes-Over-Everything Chain, First Run With Real Data
 
-对应 `261014/ESP32CAM+OV9281 双摄眼动仪 · PC 直控方案可行性分析.md` 第八节"分阶段路线"的 **Phase 1**：
-> PC 全接管。ESP32-CAM 只做两件事：推场景视频、把 PC 回的遮罩刷到 OLED。目的：先把**几何标定**（场景像素 ↔ OLED 像素）和**遮罩视觉效果**调对，不碰FOMO，最快出结果。
+Corresponds to **Phase 1** of `261014/pc-direct-control-feasibility.md`'s Section 8 "Phased Roadmap":
+> PC takes over everything. ESP32-CAM only does two things: stream the scene video, paint the mask the PC sends back onto the OLED. Goal: get the **geometric calibration** (scene pixel ↔ OLED pixel) and the **mask visual effect** right first, don't touch FOMO yet, fastest path to a result.
 
-## 背景：这次要替换掉的是什么
+## Background: What Is Being Replaced This Round
 
-`261022/fusion_poc.py` 已经验证过"判断是否该遮挡 -> 发/mask指令"这条状态机+HTTP时序本身没问题，但它的README明确写了两处是模拟的：
+`261022/fusion_poc.py` already validated that the "judge whether to occlude → send /mask command" state machine + HTTP timing has no inherent problem, but its README explicitly states two things are simulated:
 
-1. "当前注视位置"：WASD键盘手动移动，不是真实眼动数据
-2. "干扰物位置"：写死的固定矩形，不是真实物体检测
+1. "Current gaze position": moved manually via WASD keys, not real eye-tracking data
+2. "Distractor position": a hardcoded fixed rectangle, not real object detection
 
-`261022/README.md`自己列出了替换顺序：
-1. 先补上可信的"瞳孔坐标 -> OLED坐标"标定
-2. 再接入真实物体检测模型
-3. 把`fusion_poc.py`里的模拟部分换成上面两项的真实输出
+`261022/README.md` itself laid out the replacement order:
+1. First fill in a trustworthy "pupil coordinates → OLED coordinates" calibration
+2. Then integrate a real object-detection model
+3. Replace the simulated parts in `fusion_poc.py` with the real outputs from the two items above
 
-**本次只做第1项**，第2项（真实物体检测/FOMO）按Phase1的范围定义明确不做——"不碰FOMO"是261014文档原话，不是本次遗漏。
+**This round only does item 1**; item 2 (real object detection/FOMO) is explicitly out of scope per Phase 1's definition — "don't touch FOMO" is a direct quote from the `261014` document, not an oversight this time.
 
-## 和261004现有标定脚本的关系（为什么不直接复用calibration_ellseg.py）
+## Relationship to the Existing 261004 Calibration Script (Why Not Just Reuse calibration_ellseg.py)
 
-`261004/calibration_ellseg.py`标定的是"瞳孔像素坐标 -> 800×600的PC窗口坐标"，而且它的`detect_eye()`用的是Haar cascade人脸+眼睛两级检测——这套检测逻辑是给OV9281那种"眼睛只占画面一小部分、需要先从大画面里找眼睛"的场景设计的。
+`261004/calibration_ellseg.py` calibrates "pupil pixel coordinates → an 800×600 PC window's coordinates," and its `detect_eye()` uses a two-stage Haar cascade face + eye detector — this detection logic is designed for a scenario like OV9281's, where "the eye only occupies a small portion of the frame, and the eye must first be located within the larger frame."
 
-GC0308不是这个使用方式：`261029/gc0308_capture_video.py`已经验证过，GC0308近距离工作时眼睛本来就占满画面，正确的做法是开场手动框一次ROI（排除鼻梁噪点区），全程复用这个固定框，不逐帧跑Haar cascade（跑了也大概率找不到"脸"）。
+GC0308 isn't used that way: `261029/gc0308_capture_video.py` already validated that when GC0308 works at close range, the eye already fills the frame by default, and the correct approach is to manually box an ROI once at the start (excluding the nose-bridge noise region) and reuse that fixed box throughout, rather than running Haar cascade frame by frame (which would likely fail to find a "face" anyway).
 
-所以本文件夹新写了一个专门给GC0308用的标定脚本，直接以**OLED的128×64像素坐标系**为标定目标（而不是800×600的任意窗口），省掉"标定到任意空间后再换算成OLED坐标"这一步换算及其引入的误差。
+So this folder has a newly written calibration script specifically for GC0308, targeting **the OLED's 128×64 pixel coordinate system** directly (rather than an arbitrary 800×600 window), eliminating the "calibrate to an arbitrary space, then convert to OLED coordinates" step and the error it introduces.
 
-## 场景摄像头→OLED的映射：用的是最简化方案，不是真正的几何标定
+## Scene-Camera → OLED Mapping: Using the Simplest Possible Scheme, Not a Real Geometric Calibration
 
-`261022/esp32cam_wifi_mask_server.ino`的文档里写得很清楚：**现在OLED没有装光学透镜，OLED屏幕本身就直接代表"人眼能看到的范围"**，`/mask`接口收到的(x,y,w,h)不经过任何几何映射，就是OLED自己的像素坐标。
+`261022/esp32cam_wifi_mask_server.ino`'s documentation states clearly: **the OLED currently has no optical lens installed, so the OLED screen itself directly represents "what the eye can see"** — the (x,y,w,h) received by the `/mask` endpoint goes through no geometric mapping at all, it's just the OLED's own pixel coordinates.
 
-`261016_固定与供电计划.md`提过真正的场景摄像头→OLED几何标定（需要外部参照相机拍OLED经镜片反射后的真实世界落点）还没有做，这件事独立于本次Phase1，等透镜装上之后才有意义。
+`261016/mounting-and-power-plan.md` mentioned that the real scene-camera → OLED geometric calibration (which requires an external reference camera to photograph where the OLED, after reflecting through the lens, actually lands in the real world) hasn't been done yet — this is independent of the current Phase 1, and will only matter once the lens is installed.
 
-本次`phase1_fusion.py`里，"场景画面里的干扰物位置"到"OLED坐标"这一步，用的是**最简单的线性缩放**（ESP32-CAM的QVGA 320×240帧 → OLED 128×64，等比例缩小约2.5倍），这是一个有意的简化占位，不是正式标定，代码注释里会标清楚，不要误当成已完成的几何映射标定。
+In this round's `phase1_fusion.py`, the step from "distractor position in the scene frame" to "OLED coordinates" uses **the simplest possible linear scaling** (the ESP32-CAM's QVGA 320×240 frame → OLED 128×64, roughly a 2.5x proportional downscale) — this is a deliberate simplified placeholder, not a formal calibration; the code comments make this clear, don't mistake it for a completed geometric-mapping calibration.
 
-## 文件
+## Files
 
-- `calibration_gc0308_oled.py` —— GC0308专用5点标定，目标点直接是OLED坐标系(128×64)下的5个点。标定完把拟合出的仿射矩阵、GC0308裁剪框、camera index一起存成一个JSON文件（`gc0308_oled_calibration.json`），供下面的融合脚本直接加载，不用每次都重新标定
-- `phase1_fusion.py` —— Phase1主程序：加载标定JSON → 实时读GC0308+EllSeg算出真实注视点（已经是OLED坐标系） → 轮询ESP32-CAM `/capture`做场景参考展示（叠加"假干扰物"矩形，按上面说的线性缩放换算到OLED坐标） → 复用`fusion_poc.py`验证过的"状态跳变才发请求"防抖逻辑 → 真实调用`/mask`，这次传的是真实眼动数据算出来的坐标，不是键盘模拟
+- `calibration_gc0308_oled.py` — a GC0308-specific 5-point calibration, with the target points directly being 5 points in the OLED coordinate system (128×64). After calibration, the fitted affine matrix, the GC0308 crop box, and the camera index are all saved together into one JSON file (`gc0308_oled_calibration.json`), which the fusion script below loads directly, so it doesn't need to re-calibrate every time
+- `phase1_fusion.py` — the Phase 1 main program: loads the calibration JSON → reads GC0308+EllSeg in real time to compute the real gaze point (already in the OLED coordinate system) → polls the ESP32-CAM's `/capture` for a scene reference display (overlaying a "fake distractor" rectangle, converted to OLED coordinates via the linear scaling described above) → reuses the "only send a request on state change" debounce logic already validated in `fusion_poc.py` → actually calls `/mask`, this time passing coordinates computed from real eye-tracking data, not keyboard simulation
 
-## 运行顺序
+## Run Order
 
-1. 确认GC0308当前camera index（可能又变了）：
+1. Confirm GC0308's current camera index (it may have changed again):
    ```
-   D:\工业设计\python.exe "D:\Homework\作品集\课程\261004\gc0308\identify_gc0308.py"
+   python "261004/gc0308/identify_gc0308.py"
    ```
-2. 跑标定（这一步只需要在GC0308固定安装到镜架之后做一次，除非后续物理位置又变了）：
+2. Run calibration (only needs to be done once after GC0308 is fixed-mounted to the frame, unless the physical position changes again later):
    ```
-   D:\工业设计\python.exe "D:\Homework\作品集\课程\261030\calibration_gc0308_oled.py" --camera-index <确认的index>
+   python "261030/calibration_gc0308_oled.py" --camera-index <confirmed index>
    ```
-   跟着提示框一次ROI、盯着5个标定点看，跑完会在当前目录生成`gc0308_oled_calibration.json`
-3. 确认ESP32-CAM的IP（串口监视器看，或者路由器后台查），跑融合主程序：
+   Follow the prompt to box an ROI once, then look at the 5 calibration points in turn; once finished, `gc0308_oled_calibration.json` is generated in the current directory
+3. Confirm the ESP32-CAM's IP (via the serial monitor, or the router admin page), then run the fusion main program:
    ```
-   D:\工业设计\python.exe "D:\Homework\作品集\课程\261030\phase1_fusion.py" --esp32-ip <ESP32CAM的IP>
+   python "261030/phase1_fusion.py" --esp32-ip <ESP32CAM's IP>
    ```
-   这次窗口里显示的注视点是真实的（跟着你的眼睛动），干扰物矩形仍然是写死的占位（标签会注明"FAKE OBJECT"），看真实注视点移进/移出这个矩形时，真实OLED是否正确地画出/清除遮挡图案
+   This time the gaze point shown in the window is real (it follows your eye), the distractor rectangle is still a hardcoded placeholder (labeled "FAKE OBJECT"), and you can watch whether the real OLED correctly draws/clears the occlusion pattern as the real gaze point moves in and out of this rectangle
 
-## 本次明确不做、下一步要做的事
+## Explicitly Not Done This Round, Next Steps
 
-- **真实物体检测/FOMO**：按Phase1范围定义不做，Phase2才轮到（`261014`第八节）
-- **场景摄像头→OLED的正式几何标定**：现在用的是线性缩放占位，等透镜装上才做（`261016`节"待解决"项）
-- **标定精度**：`261004/experiment_report.md`7h节的历史数据显示5点标定误差在114-154px量级（800×600窗口下），换算到OLED的128×64空间后，这个误差占比会更明显（114px相当于OLED宽度的接近整个屏幕）——这次用GC0308直接对OLED坐标标定，误差量级大概率会不一样，需要实测后如实记录，不能假设"应该差不多"
+- **Real object detection/FOMO**: out of scope per Phase 1's definition, comes up in Phase 2 (`261014` section 8)
+- **Formal geometric calibration of scene camera → OLED**: currently using the linear-scaling placeholder, will be done once the lens is installed (the "open item" in `261016`)
+- **Calibration precision**: historical data in `261004/experiment_report.md` section 7h shows 5-point calibration error on the order of 114-154px (under an 800×600 window); once converted into the OLED's 128×64 space, this error's proportional size becomes much more pronounced (114px is close to the OLED's entire width) — this round calibrates GC0308 directly against OLED coordinates, so the error's order of magnitude will likely be different, and needs to be measured and honestly recorded, it cannot be assumed to be "probably similar"

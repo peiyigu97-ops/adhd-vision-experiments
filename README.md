@@ -1,81 +1,104 @@
-# ADHD 注意力转译眼镜 · 实验记录
+# ADHD Attention-Translation Glasses — Experiment Log
 
-> 一套面向 ADHD 人群的"选择性视觉干预"可穿戴原型的完整实验过程记录——从 Edge AI 物体识别的最初尝试，到眼动追踪硬件选型、瞳孔检测算法对比、PCB 设计，再到 PC 直控全链路首次跑通。
->
-> 本仓库的定位是**过程记录，不是成品展示**：每一步测了什么、用什么方法测、程序报告的数字和人工复核后的真实数字分别是多少、为什么某条路线被放弃，都如实保留，包括失败和推翻过的结论。这是整个技术脉络里反复使用的方法论，也是本仓库想保留的核心价值。
+![status](https://img.shields.io/badge/status-feasibility_prototype-blue)
+![best_pupil_accuracy](https://img.shields.io/badge/best_pupil_detection_accuracy-86.9%25_(no_IR)-brightgreen)
+![camera_routes](https://img.shields.io/badge/camera_routes_tested-2-orange)
+![detector_approaches](https://img.shields.io/badge/detector_approaches_compared-4-orange)
+![platform](https://img.shields.io/badge/platform-ESP32%20%7C%20Windows%20%7C%20PyTorch-lightgrey)
+![license](https://img.shields.io/badge/license-MIT-green)
+
+**A complete experimental trail for a wearable "selective visual intervention" prototype for ADHD** — from the first Edge AI object-recognition attempts, through eye-tracking camera selection and pupil-detection algorithm comparisons, to PCB design and the first real-data run of the PC-direct-control pipeline.
 
 ---
 
-## 一、项目要解决的问题
+## What this is
 
-ADHD 与非 ADHD 人群对同一现实场景中的信息，可能有完全不同的注意力优先级分配。项目最初的设想：做一副眼镜，实时识别佩戴者视野中的"干扰物"，并选择性地对其做视觉抑制（像素化/模糊/遮挡），同时增强真正相关的物体——本质是让同一个现实场景向不同用户呈现"不同的视觉世界"。
+ADHD and non-ADHD individuals may assign completely different attention priorities to information in the same real-world scene. The original concept: build a pair of glasses that recognizes "distractors" in the wearer's field of view in real time, and selectively suppresses them visually (pixelation/blur/occlusion) while enhancing what's actually relevant — in effect, letting the same real scene present "different visual worlds" to different users.
 
-这个设想在推进过程中不断被实验结果修正：从"训练好的物体识别模型"到"开放词汇检测"，从"识别物体"到"识别注视点"，从"树莓派可穿戴一体机"到"PC 直控桌面原型"，从"OV9281 + 红外补光"到"GC0308 + 深度学习瞳孔分割"。每一次转向都有具体的实验数据支撑，记录在下面的文档里。
+This concept was repeatedly revised by experimental results as the project progressed: from a "trained object classifier" to "open-vocabulary detection," from "recognizing objects" to "recognizing the gaze point," from a "Raspberry Pi all-in-one wearable" to a "PC-direct-control desktop prototype," from "OV9281 + IR fill light" to "GC0308 + deep-learning pupil segmentation." Every pivot is backed by concrete experimental data, documented in the files below.
 
-## 二、技术路线总览（按时间顺序）
+**This repository is a process log, not a product showcase**: what was tested at each step, how, what the program reported vs. what manual review confirmed, and why a given route was abandoned are all kept honest — including failures and overturned conclusions. That self-correcting methodology, reused throughout the technical trail, is the core value this repository preserves.
 
-| 阶段 | 文档 | 核心内容 | 状态 |
+---
+
+## Key findings so far
+
+1. **Pupil detection: the deep-learning approach substantially outperforms classical thresholding, and needs no active IR illumination at all.**
+   - Otsu threshold + circularity filtering (classical method): true success rate 0/20 (0%) with no IR; 22/81 (27.2%, fair frames only) with 850nm IR fill light added.
+   - EllSeg (a PyTorch deep-learning segmentation model): **no IR fill light needed at all** — 13/15 (86.7%, fair frames) on static images after manual review, 12/14 (85.7%) on an independent continuous-video re-test — highly consistent results.
+   - See [`261004/experiment_report.md`](261004/experiment_report.md) Sections 6, 7f, 7g.
+
+2. **Camera selection: GC0308 (a close-range eye-tracking module) paired with EllSeg can replace the bulkier OV9281.**
+   - With the classical algorithm, GC0308's bottleneck was sensor granular noise (0% across three attempts); switching to EllSeg, static-image review reached 53/61 (86.9%), and after rigid mounting to the frame, continuous-video fair-frame accuracy reached 100% (24/24).
+   - See Section 7i.
+
+3. **Every single "100% success" reported by a program was overturned or revised down by manual visual review.** This is the methodology running through every experimental stage: a circularity score passing threshold does not mean the fit actually landed on the pupil — annotated images must be manually checked, and when needed, "fair test frames" must be separated from "unfair test frames" (eyes closed/occluded/out of focus). This rule caught two false positives in Stage 6, and a statistical-basis pitfall in Sections 7a/7i.
+
+4. **The hardware form factor was overturned more than once: the Raspberry Pi all-in-one wearable route has been abandoned; the current stage accepts a "USB-tethered-to-PC desktop prototype" as the endpoint, no longer pursuing true wearability.** See the update note at the top of [`261010/dual-camera-glasses-roadmap.md`](261010/dual-camera-glasses-roadmap.md) and [`261014/`](261014/).
+
+---
+
+## Technical roadmap (chronological)
+
+| Stage | Docs | Core content | Status |
 |---|---|---|---|
-| 概念设计 | [`260912/`](260912/260912vision%20experiment%20mindmap.md) | 视角转换系统的完整概念脑图：Edge AI → 开放世界视觉 → Relevance Engine → 视觉转译 | ✅ 已完成（概念设计） |
-| Edge AI 基线 | [`260918/`](260918/) [`260919/`](260919/) | ESP32-CAM + Edge Impulse 闭环物体识别最初尝试 | ✅ 已完成，暴露 closed-set 识别局限 |
-| ESP32 本地目标检测 | [`261003/`](261003/) | ESP32-CAM + OLED 本地推理+显示固件 | ✅ 已完成 |
-| **眼动追踪可行性验证（核心）** | [`261004/experiment_report.md`](261004/experiment_report.md) | OV9281/GC0308 两条摄像头路线、Otsu/星射线法/MediaPipe/EllSeg 四种检测算法的完整对比实验，含视觉复核方法论 | ✅ 主线已验证，细节持续推进 |
-| 一体化可穿戴路线 | [`261010/`](261010/眼镜式双摄融合眼动仪路线图.md) | Pi Zero 2 W 方案设计 | ❌ 已废弃（WiFi 问题无法解决），文档保留作历史记录 |
-| PC 直控路线 | [`261014/`](261014/) | 抛弃树莓派，PC 作为唯一算力单元的可行性分析 | ✅ 当前主线方案 |
-| ESP32 硬件选型排查 | [`261016/`](261016/) | ESP32-CAM 接口限制、OV9281 封装排查 | ✅ 已完成 |
-| 导师会议对照 | [`261017/`](261017/261017_会议纪要对照记录.md) | 实测结果与导师反馈的对照记录，模块化拆分决策 | ✅ 已完成 |
-| 外观渲染 | [`261021/`](261021/) | 眼镜工业设计渲染图 | ✅ 已完成 |
-| ESP32CAM+OLED 联调 | [`261022/`](261022/README.md) | WiFi 推流 + OLED 遮挡显示固件，融合逻辑 PoC | ✅ 已完成 |
-| GC0308 摄像头小型化验证 | [`261029/`](261029/) | GC0308 + EllSeg 复测（静态图 + 连续视频 + 固定安装前后对比） | ✅ 已完成 |
-| Phase 1 全链路联调 | [`261030/README.md`](261030/README.md) | 真实瞳孔坐标 → OLED 坐标全链路首次用真实数据跑通 | ✅ 已完成 |
-| Module A PCB 设计 | [`261106/`](261106/) | 眼镜本体 PCB 方案（有线版 + 无线化升级路线） | 🔶 方案阶段，尚未打样 |
-| 听觉刺激量化实验 | [`260924/`](260924/) | 任务启动项目的听觉前测实验设计 | 🔶 方案已定稿，等待被试招募执行 |
-| 共情工具多感官实验 | [`260907/`](260907/) | 划消任务 + 2×2×2 多感官干扰矩阵实验设计 | 🔶 物料已设计，等待执行 |
-
-## 三、目前最重要的几个结论
-
-1. **瞳孔检测：深度学习方案大幅优于经典阈值算法，且不依赖主动红外补光。**
-   - Otsu 阈值 + 圆度筛选（经典方法）：无 IR 时真实成功率 0/20（0%）；加 850nm IR 补光后 22/81（27.2%，仅公平帧）。
-   - EllSeg（PyTorch 深度学习分割模型）：**无需任何 IR 补光**，静态图人工复核后 13/15（86.7%，公平帧），独立新数据的连续视频复测 12/14（85.7%），结果高度一致。
-   - 详见 [`261004/experiment_report.md`](261004/experiment_report.md) 第六、七f、七g节。
-
-2. **摄像头选型：GC0308（近距离专用眼动模组）配合 EllSeg 可以替代体积更大的 OV9281。**
-   - GC0308 用经典算法时瓶颈是传感器颗粒噪声（三轮尝试均 0%），但换成 EllSeg 后静态图复核 53/61（86.9%），固定安装到镜架后连续视频公平帧成功率达到 100%（24/24）。
-   - 详见第七i节。
-
-3. **每一次"程序报告 100% 成功"都被人工视觉复核推翻或下修过。** 这是贯穿全部实验阶段的方法论：圆度指标达标不等于真的拟合在瞳孔上，必须人工核查标注图，必要时还要区分"公平测试帧"和"不公平测试帧"（闭眼/遮挡/失焦）。这条规则帮助在第 6 阶段发现过两次误报，在第 7a/7i 阶段发现过统计口径陷阱。
-
-4. **硬件形态几经推翻：树莓派一体化可穿戴路线已放弃，现阶段接受"有线接 PC 的桌面原型"作为当前终点，不再追求真·可穿戴。** 详见 [`261010/`](261010/眼镜式双摄融合眼动仪路线图.md) 文首更新说明与 [`261014/`](261014/)。
-
-## 四、仓库结构说明
-
-本仓库按**原始课程日期文件夹**组织（如 `261004`、`261010`），这是实验过程中实际使用的目录结构，文档内部的相互引用路径（例如"见 `261004/experiment_report.md` 第7i节"）保持有效，不做二次改写。
-
-```
-260907/   共情工具方向多感官实验设计
-260912/   视觉系统概念脑图
-260918/   ESP32-CAM 官方示例固件（Edge AI 基线用）
-260919/   ESP32-CAM 早期物体识别固件
-260924/   听觉刺激量化实验方案（定稿版）
-261003/   ESP32-CAM 本地目标检测 + OLED 显示固件
-261004/   【核心】眼动追踪可行性验证全部代码、数据、实验报告
-261010/   Pi Zero 2 W 一体化方案（已废弃，保留作历史记录）
-261014/   PC 直控方案可行性分析（当前主线）
-261016/   ESP32/OV9281 硬件选型排查记录
-261017/   导师会议纪要对照记录
-261021/   眼镜工业设计渲染图
-261022/   ESP32CAM WiFi 推流 + OLED 遮挡固件与联调脚本
-261029/   GC0308 摄像头小型化验证脚本
-261030/   Phase 1 全链路真实数据联调（标定 + 融合主程序）
-261106/   Module A（眼镜本体）PCB 设计方案
-```
-
-## 五、如何复现
-
-大部分 Python 脚本依赖 `opencv-python`、`numpy`、`torch`（EllSeg 推理用，CPU 版即可）。EllSeg 本体代码与预训练权重未包含在本仓库中（体积较大且为第三方仓库），获取方式见 [`261004/experiment_report.md`](261004/experiment_report.md) 第 7f.1 节。`261030/phase1_fusion.py` 依赖的 `yolov8n.pt` 为 Ultralytics 官方预训练权重，运行前请自行下载（标准 COCO 预训练模型，网络上可直接获取）。
-
-固件（`.ino` 文件）基于 Arduino IDE + ESP32 开发板包，烧录环境要求见各固件所在文件夹内的说明。
+| Concept design | [`260912/`](260912/vision-experiment-mindmap.md) | Full concept mindmap for the perspective-transformation system: Edge AI → open-world vision → Relevance Engine → visual transformation | ✅ Complete (concept design) |
+| Edge AI baseline | [`260918/`](260918/) [`260919/`](260919/) | First ESP32-CAM + Edge Impulse closed-loop object-recognition attempt | ✅ Complete, exposed closed-set recognition limits |
+| ESP32 on-device detection | [`261003/`](261003/) | ESP32-CAM + OLED local inference + display firmware | ✅ Complete |
+| **Eye-tracking feasibility validation (core)** | [`261004/experiment_report.md`](261004/experiment_report.md) | Full comparison of two camera routes (OV9281/GC0308) and four detection approaches (Otsu/starburst/MediaPipe/EllSeg), including the visual-review methodology | ✅ Main line validated, details ongoing |
+| All-in-one wearable route | [`261010/`](261010/dual-camera-glasses-roadmap.md) | Pi Zero 2 W design | ❌ Deprecated (WiFi issue never solved), kept as historical record |
+| PC-direct-control route | [`261014/`](261014/) | Feasibility analysis of dropping the Pi, PC as the sole compute unit | ✅ Current main line |
+| ESP32 hardware selection | [`261016/`](261016/) | ESP32-CAM interface limits, OV9281 package-type investigation | ✅ Complete |
+| Advisor meeting cross-reference | [`261017/`](261017/meeting-notes-cross-reference.md) | Cross-referencing measured results against advisor feedback, the modular-split decision | ✅ Complete |
+| Industrial design renders | [`261021/`](261021/) | Glasses industrial-design renders | ✅ Complete |
+| ESP32CAM+OLED integration | [`261022/`](261022/README.md) | WiFi streaming + OLED occlusion-display firmware, fusion-logic PoC | ✅ Complete |
+| GC0308 miniaturization validation | [`261029/`](261029/) | GC0308 + EllSeg re-test (static images + continuous video + before/after fixed mounting) | ✅ Complete |
+| Phase 1 full-chain integration | [`261030/README.md`](261030/README.md) | First end-to-end run with real data, real pupil coordinates → OLED coordinates | ✅ Complete |
+| Module A PCB design | [`261106/`](261106/) | Glasses-body PCB plan (wired version + wireless upgrade path) | 🔶 Plan stage, not yet fabricated |
+| Auditory stimulus experiment | [`260924/`](260924/) | Pre-test experiment design for the task-initiation project | 🔶 Design finalized, awaiting subject recruitment |
+| Empathy-tool multi-sensory experiment | [`260907/`](260907/) | Cancellation task + 2×2×2 multi-sensory distraction matrix design | 🔶 Materials designed, awaiting execution |
 
 ---
 
-*本仓库内容整理自作者的课程实验笔记，如实保留了推翻、重测、方法论修正的完整过程。*
+## Repository structure
+
+This repository is organized by the **original course date folders** (e.g. `261004`, `261010`) — the actual directory structure used during the experiments — so the cross-references inside the documents (e.g. "see `261004/experiment_report.md` Section 7i") remain valid without rewriting.
+
+```
+260907/   empathy-tool-direction multi-sensory experiment design
+260912/   vision-system concept mindmap
+260918/   ESP32-CAM official example firmware (used for the Edge AI baseline)
+260919/   early ESP32-CAM object-recognition firmware
+260924/   auditory stimulus quantification experiment plan (final version)
+261003/   ESP32-CAM on-device object detection + OLED display firmware
+261004/   [CORE] all eye-tracking feasibility validation code, data, and the experiment report
+261010/   Pi Zero 2 W all-in-one plan (deprecated, kept as historical record)
+261014/   PC-direct-control feasibility analysis (current main line)
+261016/   ESP32/OV9281 hardware-selection investigation
+261017/   advisor meeting notes cross-reference
+261021/   glasses industrial-design renders
+261022/   ESP32CAM WiFi streaming + OLED occlusion firmware and integration scripts
+261029/   GC0308 miniaturization validation scripts
+261030/   Phase 1 full-chain real-data integration (calibration + fusion main program)
+261106/   Module A (glasses body) PCB design plan
+```
+
+---
+
+## Reproducing this
+
+Most Python scripts depend on `opencv-python`, `numpy`, and `torch` (for EllSeg inference — the CPU build is sufficient). EllSeg's own code and pre-trained weights are not included in this repository (third-party repo, large file size) — see [`261004/experiment_report.md`](261004/experiment_report.md) Section 7f.1 for how to obtain them. `261030/phase1_fusion.py` depends on `yolov8n.pt`, Ultralytics' official pre-trained weights — download it yourself before running (a standard COCO-pretrained model, freely available online).
+
+Firmware (`.ino` files) targets the Arduino IDE + ESP32 board package; flashing-environment requirements are documented inside each firmware's own folder.
+
+---
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
+
+EllSeg, MediaPipe, and YOLOv8 are third-party tools referenced by this project under their own respective licenses; none of their code or weights are redistributed in this repository.
+
+---
+
+*This repository was compiled from the author's course experiment notes, honestly preserving the full process of overturned conclusions, re-tests, and methodology corrections.*
