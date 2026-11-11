@@ -1,0 +1,101 @@
+global_index,filename,detector_success,confidence,visual_eye_state,fair_test,notes
+0,eye_ir_1791395745249.png,True,0.858,open,yes,
+1,eye_ir_1791395761442.png,False,0.0,open,yes,
+2,eye_ir_1791395767968.png,True,0.891,open,yes,
+3,eye_ir_1791395776651.png,False,0.0,odd_angle_or_partial_closure,no,pupil shape cut off by eyelid or extreme gaze angle
+4,eye_ir_1791395778685.png,True,0.873,open,yes,
+5,eye_ir_1791395784641.png,True,0.878,open,yes,
+6,eye_ir_1791395785887.png,True,0.862,open,yes,
+7,eye_ir_1791395804303.png,False,0.0,open,yes,
+8,eye_ir_1791395816252.png,True,0.888,open,yes,
+9,eye_ir_1791395833858.png,False,0.0,odd_angle_or_partial_closure,no,pupil shape cut off by eyelid or extreme gaze angle
+10,eye_ir_1791395839500.png,False,0.0,odd_angle_or_partial_closure,no,pupil shape cut off by eyelid or extreme gaze angle
+11,eye_ir_1791395841792.png,True,0.86,open,yes,
+12,eye_ir_1791395885677.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+13,eye_ir_1791395886602.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+14,eye_ir_1791395888097.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+15,eye_ir_1791395890479.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+16,eye_ir_1791395891529.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+17,eye_ir_1791395892439.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+18,eye_ir_1791395901113.png,True,0.862,open,yes,
+19,eye_ir_1791395907929.png,True,0.887,open,yes,
+20,eye_ir_1791395909758.png,False,0.0,odd_angle_or_partial_closure,no,pupil shape cut off by eyelid or extreme gaze angle
+21,eye_ir_1791395911416.png,False,0.0,odd_angle_or_partial_closure,no,pupil shape cut off by eyelid or extreme gaze angle
+22,eye_ir_1791395912885.png,True,0.884,open,yes,
+23,eye_ir_1791395916263.png,True,0.876,open,yes,
+24,eye_ir_1791395930882.png,True,0.839,open,yes,
+25,eye_ir_1791395939405.png,True,0.819,open,yes,
+26,eye_ir_1791395942113.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+27,eye_ir_1791395946611.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+28,eye_ir_1791395948863.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+29,eye_ir_1791395950060.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+30,eye_ir_1791395950812.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+31,eye_ir_1791395954009.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+32,eye_ir_1791395959278.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+33,eye_ir_1791395960115.png,False,0.0,severe_blur_defocus,no,"iris/pupil structure not identifiable, camera focus appears to have drifted"
+34,eye_ir_1791395963276.png,False,0.0,open,yes,
+35,eye_ir_1791395963812.png,False,0.0,open,yes,
+36,eye_ir_1791395964807.png,False,0.0,open,yes,
+37,eye_ir_1791395965494.png,False,0.0,open,yes,
+38,eye_ir_1791395966289.png,False,0.0,open,yes,
+39,eye_ir_1791395966989.png,False,0.0,open,yes,
+40,eye_ir_1791395967564.png,False,0.0,open,yes,
+41,eye_ir_1791395968309.png,False,0.0,open,yes,
+42,eye_ir_1791395969266.png,False,0.0,open,yes,
+43,eye_ir_1791395970092.png,False,0.0,open,yes,
+44,eye_ir_1791395970702.png,False,0.0,open,yes,
+45,eye_ir_1791395971494.png,False,0.0,open,yes,
+46,eye_ir_1791395972438.png,False,0.0,open,yes,
+47,eye_ir_1791395973306.png,False,0.0,open,yes,
+48,eye_ir_1791395974040.png,False,0.0,open,yes,
+49,eye_ir_1791395974774.png,False,0.0,open,yes,
+50,eye_ir_1791395975628.png,False,0.0,open,yes,
+51,eye_ir_1791395976461.png,True,0.854,open,yes,
+52,eye_ir_1791395977284.png,False,0.0,open,yes,
+53,eye_ir_1791395978079.png,False,0.0,open,yes,
+54,eye_ir_1791395978840.png,False,0.0,open,yes,
+55,eye_ir_1791395979660.png,False,0.0,open,yes,
+56,eye_ir_1791395980766.png,False,0.0,open,yes,
+57,eye_ir_1791395981674.png,False,0.0,open,yes,
+58,eye_ir_1791395982442.png,False,0.0,open,yes,
+59,eye_ir_1791395983473.png,False,0.0,open,yes,
+60,eye_ir_1791395985686.png,False,0.0,open,yes,
+61,eye_ir_1791395986826.png,False,0.0,open,yes,
+62,eye_ir_1791395988477.png,True,0.898,open,yes,
+63,eye_ir_1791395989203.png,False,0.0,open,yes,
+64,eye_ir_1791395990552.png,True,0.86,open,yes,
+65,eye_ir_1791396001505.png,False,0.0,open,yes,
+66,eye_ir_1791396002176.png,False,0.0,open,yes,
+67,eye_ir_1791396002910.png,False,0.0,open,yes,
+68,eye_ir_1791396003603.png,False,0.0,open,yes,
+69,eye_ir_1791396005008.png,True,0.798,open,yes,
+70,eye_ir_1791396018610.png,False,0.0,open,yes,
+71,eye_ir_1791396019572.png,False,0.0,open,yes,
+72,eye_ir_1791396020089.png,False,0.0,open,yes,
+73,eye_ir_1791396020799.png,False,0.0,open,yes,
+74,eye_ir_1791396021575.png,False,0.0,open,yes,
+75,eye_ir_1791396022037.png,False,0.0,open,yes,
+76,eye_ir_1791396022602.png,False,0.0,open,yes,
+77,eye_ir_1791396023210.png,False,0.0,open,yes,
+78,eye_ir_1791396023887.png,False,0.0,open,yes,
+79,eye_ir_1791396024433.png,False,0.0,open,yes,
+80,eye_ir_1791396025102.png,False,0.0,open,yes,
+81,eye_ir_1791396026486.png,False,0.0,open,yes,
+82,eye_ir_1791396034356.png,True,0.856,open,yes,
+83,eye_ir_1791396034385.png,True,0.887,open,yes,
+84,eye_ir_1791396035256.png,True,0.843,open,yes,
+85,eye_ir_1791396036005.png,True,0.898,open,yes,
+86,eye_ir_1791396036773.png,False,0.0,open,yes,
+87,eye_ir_1791396038149.png,False,0.0,open,yes,
+88,eye_ir_1791396039255.png,False,0.0,open,yes,
+89,eye_ir_1791396040247.png,True,0.795,open,yes,
+90,eye_ir_1791396043816.png,False,0.0,open,yes,"corneal reflection artifact: text-like bright pattern (keyboard/monitor reflection) inside pupil region, distinct from LED catchlight"
+91,eye_ir_1791396044874.png,False,0.0,open,yes,"corneal reflection artifact: text-like bright pattern (keyboard/monitor reflection) inside pupil region, distinct from LED catchlight"
+92,eye_ir_1791396047109.png,False,0.0,open,yes,"corneal reflection artifact: text-like bright pattern (keyboard/monitor reflection) inside pupil region, distinct from LED catchlight"
+93,eye_ir_1791396047856.png,False,0.0,open,yes,"corneal reflection artifact: text-like bright pattern (keyboard/monitor reflection) inside pupil region, distinct from LED catchlight"
+94,eye_ir_1791396048657.png,False,0.0,open,yes,"corneal reflection artifact: text-like bright pattern (keyboard/monitor reflection) inside pupil region, distinct from LED catchlight"
+95,eye_ir_1791396050609.png,False,0.0,open,yes,"corneal reflection artifact: text-like bright pattern (keyboard/monitor reflection) inside pupil region, distinct from LED catchlight"
+96,eye_ir_1791396051174.png,False,0.0,open,yes,"corneal reflection artifact: text-like bright pattern (keyboard/monitor reflection) inside pupil region, distinct from LED catchlight"
+97,eye_ir_1791396052185.png,False,0.0,open,yes,"corneal reflection artifact: text-like bright pattern (keyboard/monitor reflection) inside pupil region, distinct from LED catchlight"
+98,eye_ir_1791396052752.png,False,0.0,open,yes,"corneal reflection artifact: text-like bright pattern (keyboard/monitor reflection) inside pupil region, distinct from LED catchlight"
+99,eye_ir_1791396053360.png,False,0.0,open,yes,"corneal reflection artifact: text-like bright pattern (keyboard/monitor reflection) inside pupil region, distinct from LED catchlight"

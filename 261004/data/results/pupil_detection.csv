@@ -1,0 +1,21 @@
+filename,success,reason,pupil_x,pupil_y,pupil_width,pupil_height,confidence
+eye_auto_1791110451544.png,False,best candidate circularity too low (0.18) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110458032.png,False,best candidate circularity too low (0.18) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110463868.png,False,best candidate circularity too low (0.18) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110470346.png,False,best candidate circularity too low (0.56) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110476010.png,False,best candidate circularity too low (0.28) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110483568.png,False,best candidate circularity too low (0.40) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110489040.png,False,best candidate circularity too low (0.19) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110503787.png,False,best candidate circularity too low (0.29) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110508589.png,False,best candidate circularity too low (0.21) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110520214.png,False,best candidate circularity too low (0.20) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110526371.png,False,best candidate circularity too low (0.24) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110532023.png,False,best candidate circularity too low (0.16) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110543489.png,False,best candidate circularity too low (0.15) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110546870.png,False,best candidate circularity too low (0.17) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110551599.png,False,best candidate circularity too low (0.21) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110559134.png,False,best candidate circularity too low (0.16) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110569645.png,False,best candidate circularity too low (0.20) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110687750.png,False,best candidate circularity too low (0.59) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110693926.png,False,best candidate circularity too low (0.18) -- likely not a true pupil shape,nan,nan,nan,nan,0.0
+eye_auto_1791110698797.png,False,best candidate circularity too low (0.28) -- likely not a true pupil shape,nan,nan,nan,nan,0.0

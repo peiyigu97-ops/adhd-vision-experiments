@@ -1,0 +1,21 @@
+filename,program_pupil_found,visual_judgment,fair_frame,notes
+eye_auto_1791110451544.png,True,CORRECT,True,red ellipse centered on catchlight within iris mask
+eye_auto_1791110458032.png,True,FAIL,False,drooping eyelid occlusion; red ellipse misses gold pupil seg mask entirely (mask sits lower-right, unmarked)
+eye_auto_1791110463868.png,True,FAIL,False,eyelid occlusion; gold pupil mask mostly below/outside red ellipse
+eye_auto_1791110470346.png,True,FAIL,False,heavily hooded eye, fragmented iris mask, no reliable pupil mask to confirm ellipse position
+eye_auto_1791110476010.png,True,CORRECT,True,clean round eye, ellipse well centered on catchlight
+eye_auto_1791110483568.png,True,FAIL,False,eye nearly closed, no gold pupil mask rendered at all, ellipse sits on bare catchlight with no corroborating segmentation
+eye_auto_1791110489040.png,True,CORRECT,True,clean round eye, ellipse well centered
+eye_auto_1791110503787.png,True,FAIL,False,clear mismatch: gold pupil mask is a separate blob entirely below the red ellipse
+eye_auto_1791110508589.png,True,CORRECT,True,clean round eye, ellipse centered on pupil
+eye_auto_1791110520214.png,True,CORRECT,True,clean round eye, ellipse centered on pupil
+eye_auto_1791110526371.png,True,CORRECT,True,partial occlusion but ellipse overlaps gold mask + catchlight reasonably after zoom
+eye_auto_1791110532023.png,True,CORRECT,True,clean eye, ellipse nicely around catchlight/gold mask
+eye_auto_1791110543489.png,True,CORRECT,True,ellipse neatly encircles gold mask + catchlight
+eye_auto_1791110546870.png,True,CORRECT,True,ellipse overlaps bright/gold region reasonably, moderate confidence
+eye_auto_1791110551599.png,True,CORRECT,True,ellipse overlaps gold/white pupil mask well
+eye_auto_1791110559134.png,True,CORRECT,True,ellipse overlaps gold/white pupil mask well
+eye_auto_1791110569645.png,True,CORRECT,True,large clear eye, catchlight well within ellipse
+eye_auto_1791110687750.png,True,FAIL,True,thin/degenerate ellipse shape, no clear catchlight or gold mask inside it -- low-confidence fit on a fair (open-eye) frame
+eye_auto_1791110693926.png,True,FAIL,True,ellipse undersized/offset, large bright region left outside ellipse boundary -- fair frame but genuine misdetection
+eye_auto_1791110698797.png,True,CORRECT,True,small tight crop, ellipse nicely around catchlight/gold mask

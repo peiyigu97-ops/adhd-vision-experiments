@@ -1,0 +1,24 @@
+[
+  {
+    "requested_width": 640,
+    "requested_height": 480,
+    "actual_width": 640,
+    "actual_height": 480,
+    "reported_fps_CAP_PROP": 0.0,
+    "frames_captured": 147,
+    "dropped_failed_frames": 0,
+    "elapsed_seconds": 5.024,
+    "measured_fps": 29.26
+  },
+  {
+    "requested_width": 320,
+    "requested_height": 240,
+    "actual_width": 320,
+    "actual_height": 240,
+    "reported_fps_CAP_PROP": 0.0,
+    "frames_captured": 154,
+    "dropped_failed_frames": 0,
+    "elapsed_seconds": 5.008,
+    "measured_fps": 30.75
+  }
+]

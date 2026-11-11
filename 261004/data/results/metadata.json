@@ -1,0 +1,13 @@
+{
+  "camera_index": 0,
+  "resolution_requested": "1280x720",
+  "resolution_actual": "1280x720",
+  "session_duration_seconds": 93.02,
+  "total_frames": 5202,
+  "measured_fps": 55.92,
+  "roi_hits": 789,
+  "roi_hit_rate_pct": 15.17,
+  "pupil_detect_hits": 238,
+  "pupil_detect_rate_pct_of_all_frames": 4.58,
+  "pupil_detect_rate_pct_given_roi": 30.16
+}

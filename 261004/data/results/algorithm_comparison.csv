@@ -1,0 +1,21 @@
+filename,otsu_success,otsu_reason,otsu_confidence,starburst_success,starburst_reason,starburst_confidence
+eye_auto_1791110451544.png,False,best candidate circularity too low (0.18),0.0,False,fitted ellipse too elongated (axis ratio 0.39),0.0
+eye_auto_1791110458032.png,False,best candidate circularity too low (0.18),0.0,False,fitted ellipse too elongated (axis ratio 0.55),0.0
+eye_auto_1791110463868.png,False,best candidate circularity too low (0.18),0.0,False,fitted ellipse too elongated (axis ratio 0.42),0.0
+eye_auto_1791110470346.png,False,best candidate circularity too low (0.56),0.0,False,fitted ellipse too elongated (axis ratio 0.27),0.0
+eye_auto_1791110476010.png,False,best candidate circularity too low (0.28),0.0,True,,0.823
+eye_auto_1791110483568.png,False,best candidate circularity too low (0.40),0.0,False,fitted ellipse too elongated (axis ratio 0.26),0.0
+eye_auto_1791110489040.png,False,best candidate circularity too low (0.19),0.0,True,,0.874
+eye_auto_1791110503787.png,False,best candidate circularity too low (0.29),0.0,False,fitted ellipse too elongated (axis ratio 0.68),0.0
+eye_auto_1791110508589.png,False,best candidate circularity too low (0.21),0.0,False,fitted ellipse too elongated (axis ratio 0.72),0.0
+eye_auto_1791110520214.png,False,best candidate circularity too low (0.20),0.0,False,fitted ellipse too elongated (axis ratio 0.22),0.0
+eye_auto_1791110526371.png,False,best candidate circularity too low (0.24),0.0,False,fitted ellipse too elongated (axis ratio 0.54),0.0
+eye_auto_1791110532023.png,False,best candidate circularity too low (0.16),0.0,False,fitted ellipse too elongated (axis ratio 0.35),0.0
+eye_auto_1791110543489.png,False,best candidate circularity too low (0.15),0.0,False,fitted ellipse too elongated (axis ratio 0.55),0.0
+eye_auto_1791110546870.png,False,best candidate circularity too low (0.17),0.0,True,,0.959
+eye_auto_1791110551599.png,False,best candidate circularity too low (0.21),0.0,False,fitted ellipse too elongated (axis ratio 0.11),0.0
+eye_auto_1791110559134.png,False,best candidate circularity too low (0.16),0.0,False,fitted ellipse too elongated (axis ratio 0.47),0.0
+eye_auto_1791110569645.png,False,best candidate circularity too low (0.20),0.0,True,,0.862
+eye_auto_1791110687750.png,False,best candidate circularity too low (0.59),0.0,True,,0.793
+eye_auto_1791110693926.png,False,best candidate circularity too low (0.18),0.0,False,fitted ellipse too elongated (axis ratio 0.57),0.0
+eye_auto_1791110698797.png,False,best candidate circularity too low (0.28),0.0,True,,0.861

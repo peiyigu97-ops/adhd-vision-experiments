@@ -1,0 +1,80 @@
+{
+  "enumeration": [
+    {
+      "index": 0,
+      "backend": "DSHOW",
+      "default_width": 640,
+      "default_height": 480,
+      "reported_fps": -1.0,
+      "frame_readable": true,
+      "frame_shape": [
+        480,
+        640,
+        3
+      ]
+    },
+    {
+      "index": 1,
+      "backend": "DSHOW",
+      "default_width": 640,
+      "default_height": 480,
+      "reported_fps": -1.0,
+      "frame_readable": true,
+      "frame_shape": [
+        480,
+        640,
+        3
+      ]
+    }
+  ],
+  "fps_tests": [
+    {
+      "requested_width": 640,
+      "requested_height": 480,
+      "actual_width": 640,
+      "actual_height": 480,
+      "frames_captured": 74,
+      "dropped_failed_frames": 0,
+      "elapsed_seconds": 5.009,
+      "measured_fps": 14.77,
+      "index": 0,
+      "backend": "DSHOW"
+    },
+    {
+      "requested_width": 1280,
+      "requested_height": 720,
+      "actual_width": 1280,
+      "actual_height": 720,
+      "frames_captured": 73,
+      "dropped_failed_frames": 0,
+      "elapsed_seconds": 5.015,
+      "measured_fps": 14.56,
+      "index": 0,
+      "backend": "DSHOW"
+    },
+    {
+      "requested_width": 640,
+      "requested_height": 480,
+      "actual_width": 640,
+      "actual_height": 480,
+      "frames_captured": 588,
+      "dropped_failed_frames": 0,
+      "elapsed_seconds": 5.011,
+      "measured_fps": 117.34,
+      "index": 1,
+      "backend": "DSHOW"
+    },
+    {
+      "requested_width": 1280,
+      "requested_height": 720,
+      "actual_width": 1280,
+      "actual_height": 720,
+      "frames_captured": 586,
+      "dropped_failed_frames": 0,
+      "elapsed_seconds": 5.015,
+      "measured_fps": 116.85,
+      "index": 1,
+      "backend": "DSHOW"
+    }
+  ]
+}

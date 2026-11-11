@@ -1,0 +1,74 @@
+filename,success,reason,pupil_x,pupil_y,confidence
+gc0308_1791474973492.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474973521.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474973548.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474973580.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474973611.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474973643.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474973676.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474973708.png,False,best candidate circularity too low (0.13),nan,nan,0.0
+gc0308_1791474973755.png,False,best candidate circularity too low (0.13),nan,nan,0.0
+gc0308_1791474973787.png,False,best candidate circularity too low (0.13),nan,nan,0.0
+gc0308_1791474973820.png,False,best candidate circularity too low (0.13),nan,nan,0.0
+gc0308_1791474973852.png,False,best candidate circularity too low (0.13),nan,nan,0.0
+gc0308_1791474973883.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474973916.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474973947.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474973995.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474974028.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474974060.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474974091.png,False,best candidate circularity too low (0.12),nan,nan,0.0
+gc0308_1791474981353.png,False,best candidate circularity too low (0.11),nan,nan,0.0
+gc0308_1791474983747.png,False,best candidate circularity too low (0.13),nan,nan,0.0
+gc0308_1791475005782.png,False,best candidate circularity too low (0.07),nan,nan,0.0
+gc0308_1791475013840.png,False,contours found but none passed area/aspect filtering,nan,nan,0.0
+gc0308_1791475020656.png,False,best candidate circularity too low (0.31),nan,nan,0.0
+gc0308_1791475022246.png,False,best candidate circularity too low (0.23),nan,nan,0.0
+gc0308_1791475024080.png,False,best candidate circularity too low (0.25),nan,nan,0.0
+gc0308_1791475026105.png,False,best candidate circularity too low (0.36),nan,nan,0.0
+gc0308_1791475035683.png,False,best candidate circularity too low (0.40),nan,nan,0.0
+gc0308_1791475044899.png,False,best candidate circularity too low (0.05),nan,nan,0.0
+gc0308_1791475047775.png,False,best candidate circularity too low (0.28),nan,nan,0.0
+gc0308_1791475059382.png,False,best candidate circularity too low (0.36),nan,nan,0.0
+gc0308_1791475062084.png,False,best candidate circularity too low (0.26),nan,nan,0.0
+gc0308_1791475064640.png,False,best candidate circularity too low (0.06),nan,nan,0.0
+gc0308_1791475064667.png,False,best candidate circularity too low (0.06),nan,nan,0.0
+gc0308_1791475066670.png,False,contours found but none passed area/aspect filtering,nan,nan,0.0
+gc0308_1791475071517.png,False,contours found but none passed area/aspect filtering,nan,nan,0.0
+gc0308_1791475077204.png,False,best candidate circularity too low (0.57),nan,nan,0.0
+gc0308_1791475078502.png,False,best candidate circularity too low (0.56),nan,nan,0.0
+gc0308_1791475080901.png,False,best candidate circularity too low (0.36),nan,nan,0.0
+gc0308_1791475085200.png,False,best candidate circularity too low (0.46),nan,nan,0.0
+gc0308_1791475091679.png,False,best candidate circularity too low (0.06),nan,nan,0.0
+gc0308_1791475099303.png,False,best candidate circularity too low (0.08),nan,nan,0.0
+gc0308_1791475102497.png,False,best candidate circularity too low (0.46),nan,nan,0.0
+gc0308_1791475104824.png,False,best candidate circularity too low (0.09),nan,nan,0.0
+gc0308_1791475104858.png,False,best candidate circularity too low (0.09),nan,nan,0.0
+gc0308_1791475104876.png,False,best candidate circularity too low (0.09),nan,nan,0.0
+gc0308_1791475104923.png,False,best candidate circularity too low (0.09),nan,nan,0.0
+gc0308_1791475104956.png,False,best candidate circularity too low (0.39),nan,nan,0.0
+gc0308_1791475104987.png,False,best candidate circularity too low (0.46),nan,nan,0.0
+gc0308_1791475105019.png,False,best candidate circularity too low (0.42),nan,nan,0.0
+gc0308_1791475105052.png,False,best candidate circularity too low (0.09),nan,nan,0.0
+gc0308_1791475105082.png,False,best candidate circularity too low (0.09),nan,nan,0.0
+gc0308_1791475105115.png,False,best candidate circularity too low (0.09),nan,nan,0.0
+gc0308_1791475105165.png,False,best candidate circularity too low (0.09),nan,nan,0.0
+gc0308_1791475105196.png,False,best candidate circularity too low (0.09),nan,nan,0.0
+gc0308_1791475105228.png,False,best candidate circularity too low (0.09),nan,nan,0.0
+gc0308_1791475105259.png,False,best candidate circularity too low (0.09),nan,nan,0.0
+gc0308_1791475105292.png,False,best candidate circularity too low (0.16),nan,nan,0.0
+gc0308_1791475105324.png,False,best candidate circularity too low (0.06),nan,nan,0.0
+gc0308_1791475105356.png,False,best candidate circularity too low (0.07),nan,nan,0.0
+gc0308_1791475105387.png,False,best candidate circularity too low (0.07),nan,nan,0.0
+gc0308_1791475105435.png,False,best candidate circularity too low (0.07),nan,nan,0.0
+gc0308_1791475107377.png,False,best candidate circularity too low (0.20),nan,nan,0.0
+gc0308_1791475108578.png,False,best candidate circularity too low (0.09),nan,nan,0.0
+gc0308_1791475109542.png,False,best candidate circularity too low (0.07),nan,nan,0.0
+gc0308_1791475110447.png,False,best candidate circularity too low (0.38),nan,nan,0.0
+gc0308_1791475111198.png,False,best candidate circularity too low (0.07),nan,nan,0.0
+gc0308_1791475112192.png,False,contours found but none passed area/aspect filtering,nan,nan,0.0
+gc0308_1791475114037.png,False,best candidate circularity too low (0.06),nan,nan,0.0
+gc0308_1791475116262.png,False,contours found but none passed area/aspect filtering,nan,nan,0.0
+gc0308_1791475117464.png,False,contours found but none passed area/aspect filtering,nan,nan,0.0
+gc0308_1791475120613.png,False,best candidate circularity too low (0.06),nan,nan,0.0
+gc0308_1791475122935.png,False,best candidate circularity too low (0.08),nan,nan,0.0
